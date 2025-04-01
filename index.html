@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>מערכת ניהול משימות ופרויקטים</title>
+  <title>מערכת ניהול משימות ופרויקטים (Firebase)</title>
   <style>
     /* --- Base Styles --- */
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -83,14 +83,9 @@
 
     /* --- Task Card Styles --- */
     .task-card {
-        background-color: white;
-        border-radius: 5px;
-        padding: 12px;
-        margin-bottom: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        cursor: grab;
-        border: 1px solid #eee; /* Base border */
-        transition: box-shadow 0.2s ease, transform 0.1s ease, background-color 0.3s ease, border-color 0.3s ease, border-width 0.3s ease; /* Added border-width transition */
+        background-color: white; border-radius: 5px; padding: 12px; margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08); cursor: grab; border: 1px solid #eee; /* Base border */
+        transition: box-shadow 0.2s ease, transform 0.1s ease, background-color 0.3s ease, border-color 0.3s ease, border-width 0.3s ease;
         pointer-events: auto;
     }
     .task-card:hover { box-shadow: 0 3px 6px rgba(0,0,0,0.12); }
@@ -104,29 +99,22 @@
     .task-description { font-size: 0.85rem; color: #555; margin-bottom: 8px; word-break: break-word; line-height: 1.4; }
     .task-due-date { font-size: 0.8rem; color: #666; margin-top: 8px; padding-top: 6px; border-top: 1px dashed #eee; line-height: 1.3; }
     .task-due-date strong { color: var(--dark); }
+    .task-countdown {
+        font-size: 0.75rem; color: var(--primary); margin-top: 4px; line-height: 1.3; font-weight: 500;
+    }
+    .task-countdown.overdue { color: var(--danger); font-weight: bold; }
     .task-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 3px; }
     .task-actions button { border: none; background: none; cursor: pointer; padding: 4px; border-radius: 3px; font-size: 0.85rem; color: var(--dark); opacity: 0.6; transition: opacity 0.2s, background-color 0.2s; }
     .task-actions button:hover { background-color: var(--light); opacity: 1; }
 
     /* --- Updated Style for Due Alarm (Full Background + Strong Border) --- */
     .task-card.due-alarm {
-        background-color: #ffebee;  /* Light red background */
-        border-width: 3px;        /* Thicker border */
-        border-style: solid;      /* Solid border */
-        border-color: var(--danger); /* Strong danger red color */
+        background-color: #ffebee; border-width: 3px; border-style: solid; border-color: var(--danger);
     }
-    .task-card.due-alarm .task-due-date {
-        color: #c62828; /* Darker red for the date text */
-        font-weight: bold;
-    }
-    .task-card.due-alarm .task-actions button {
-       color: #a12f2f; /* Darker red for icons */
-       opacity: 0.7;
-    }
-    .task-card.due-alarm .task-actions button:hover {
-       opacity: 1;
-       background-color: #ffcdd2; /* Lighter red on hover */
-    }
+    .task-card.due-alarm .task-due-date { color: #c62828; font-weight: bold; }
+    .task-card.due-alarm .task-actions button { color: #a12f2f; opacity: 0.7; }
+    .task-card.due-alarm .task-actions button:hover { opacity: 1; background-color: #ffcdd2; }
+    .task-card.due-alarm .task-countdown:not(.overdue) { color: #c62828; }
 
     /* --- Modal Styles --- */
     .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(3px); padding: 15px; }
@@ -160,12 +148,14 @@
         .task-form input[type="date"], .task-form input[type="time"],
         .modal-form input[type="date"], .modal-form input[type="time"] { font-size: 0.9rem; height: 38px; }
         .task-due-date { font-size: 0.75rem; margin-top: 6px; padding-top: 4px; }
+        .task-countdown { font-size: 0.7rem; margin-top: 3px; }
         .date-time-inputs { flex-direction: column; align-items: stretch; gap: 10px; } /* Stack date/time on mobile */
         .date-time-inputs input[type="date"], .date-time-inputs input[type="time"] { flex-basis: auto; }
     }
     @media (max-width: 480px) {
         .column { min-width: 220px; max-width: 240px; } .column-drag-over-placeholder { min-width: 220px; max-width: 240px; } .add-column-btn { min-width: 220px; } .tab { max-width: 120px; font-size: 0.85rem;} .tab button { font-size: 0.8rem;} .task-title { font-size: 0.85rem; } .task-description { font-size: 0.75rem; }
         .task-due-date { font-size: 0.7rem; }
+        .task-countdown { font-size: 0.65rem; }
         .modal-form input[type="date"], .modal-form input[type="time"] { font-size: 0.9rem; }
     }
   </style>
@@ -225,124 +215,310 @@
    </div>
    <div class="modal-actions"> <button type="button" class="cancel-btn" data-modal-id="editTaskModal">ביטול</button> <button type="submit" class="confirm-btn">שמירה</button> </div> </form> </div> </div>
 
+  <!-- ADD Firebase SDKs -->
+  <!-- Use the 'compat' versions for easier integration with existing code -->
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+
+      // --- Firebase Configuration ---
+      // !!! IMPORTANT: Replace with your actual config values !!!
+      // !!! Make sure databaseURL is correct for your project !!!
+      const firebaseConfig = {
+        apiKey: "AIzaSyCLslwcL_UQBVR52kpGwjeLg5cOcSxWhDY", // Provided by user
+        authDomain: "mytaskmanager-fa200.firebaseapp.com",   // Provided by user
+        // *** You MUST add the correct databaseURL for your Realtime Database ***
+        // It usually looks like: https://<your-project-id>-default-rtdb.firebaseio.com
+        // Check the Realtime Database section in your Firebase console!
+        databaseURL: "https://mytaskmanager-fa200-default-rtdb.firebaseio.com", // *** VERIFY THIS URL ***
+        projectId: "mytaskmanager-fa200",               // Provided by user
+        storageBucket: "mytaskmanager-fa200.firebasestorage.app", // Provided by user (Note: Corrected name)
+        messagingSenderId: "300848663106",            // Provided by user
+        appId: "1:300848663106:web:c62905fb24a0a5eab23bdb", // Provided by user
+        measurementId: "G-7BN6SLN3P9"                 // Provided by user (Optional for RTDB)
+      };
+
+      // Initialize Firebase using compat libraries
+      try {
+        firebase.initializeApp(firebaseConfig);
+      } catch (e) {
+        console.error("Error initializing Firebase:", e);
+        alert("שגיאה קריטית באתחול החיבור לענן. האפליקציה לא תוכל לשמור או לטעון נתונים.");
+        // Optionally disable features or show a more prominent error message
+        return; // Stop execution if Firebase fails to initialize
+      }
+
+      const database = firebase.database();
+      // Define the path in your database where the data will be stored
+      const dbRef = database.ref('taskManagerData/v1'); // Added versioning to path
+
       // --- STATE MANAGEMENT ---
       let appState = { boards: [], activeBoardId: null, customStatuses: [] };
-      const STORAGE_KEY = 'taskManagerAppState_v3.3'; // Updated version for clarity
+      // No longer using STORAGE_KEY for localStorage
 
-      // --- All JS Functions (saveState, loadState, initialize..., render..., handlers..., etc.) ---
-      // --- are exactly the same as in the previous version (v3.2) ---
-      // --- The change is purely in the CSS ---
+      // --- Functions ---
+      // (generateId, getStatusInfo, escapeHTML, isLightColor, formatDateTime,
+      //  calculateRemainingTime, formatCountdown, populateStatusSelects, renderStatusManager,
+      //  renderTask, renderColumn, renderBoard, renderTabs, drag & drop handlers,
+      //  modal handlers, openModal functions, closeModal, form submit handlers (task, status, column, board),
+      //  delete functions (task, column, board, status), edit functions (task, column, board),
+      //  checkDueDates, updateCountdowns, startTimers, setupDelegatedListeners, closeModalHandler)
+      //  ... ALL these functions remain the same as in the previous version (v3.4) ...
+      //  ... EXCEPT for loadState, saveState, initializeAppState adjustments, and validation helper ...
 
-      function saveState() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appState)); } catch (e) { console.error("Error saving state:", e); alert("שגיאה בשמירת הנתונים."); } }
-      function loadState() {
-          const savedState = localStorage.getItem(STORAGE_KEY);
-          if (savedState) {
-              try {
-                  const parsedState = JSON.parse(savedState);
-                  appState.boards = Array.isArray(parsedState.boards) ? parsedState.boards : [];
-                  appState.activeBoardId = parsedState.activeBoardId || null;
-                  appState.customStatuses = Array.isArray(parsedState.customStatuses) ? parsedState.customStatuses : [];
+      function generateId(prefix = 'id') { return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; }
+      function getStatusInfo(statusId) { const status = appState.customStatuses.find(s => s.id === statusId); if (status) { return { text: status.name, color: status.color, class: 'custom-status' }; } return { text: 'לא ידוע', color: '#7f8c8d', class: 'unknown' }; }
+      function escapeHTML(str) { if (typeof str !== 'string') return String(str); return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
+      function isLightColor(hexColor) { if (!hexColor || typeof hexColor !== 'string') return true; const color = hexColor.charAt(0) === '#' ? hexColor.substring(1, 7) : hexColor; if (color.length !== 6) return true; try { const r = parseInt(color.substring(0, 2), 16); const g = parseInt(color.substring(2, 4), 16); const b = parseInt(color.substring(4, 6), 16); const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; return luminance > 0.5; } catch (e) { return true; } }
+      function formatDateTime(isoString) { if (!isoString || typeof isoString !== 'string') return null; try { const date = new Date(isoString); if (isNaN(date)) return null; const optionsDate = { day: '2-digit', month: '2-digit', year: 'numeric' }; const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: false }; return `${date.toLocaleDateString('he-IL', optionsDate)} ${date.toLocaleTimeString('he-IL', optionsTime)}`; } catch (e) { console.error("Error formatting date:", isoString, e); return null; } }
+      function calculateRemainingTime(dueDateString) { if (!dueDateString) return null; try { const targetDate = new Date(dueDateString); if (isNaN(targetDate)) return null; const now = new Date(); const diff = targetDate - now; if (diff <= 0) return { overdue: true }; const totalSeconds = Math.floor(diff / 1000); const days = Math.floor(totalSeconds / (3600 * 24)); const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600); const minutes = Math.floor((totalSeconds % 3600) / 60); const seconds = totalSeconds % 60; return { days, hours, minutes, seconds, overdue: false }; } catch (e) { console.error("Error calculating remaining time:", e); return null; } }
+      function formatCountdown(remaining) { if (!remaining) return ''; if (remaining.overdue) return 'זמן היעד עבר'; const parts = []; if (remaining.days > 0) parts.push(`${remaining.days} ימים`); if (remaining.hours > 0) parts.push(`${remaining.hours} שע'`); if (remaining.minutes > 0) parts.push(`${remaining.minutes} דק'`); if (remaining.days === 0 && remaining.hours === 0 && remaining.minutes < 5) { parts.push(`${remaining.seconds} שנ'`); } if (parts.length === 0 && remaining.seconds >= 0) return 'פחות מדקה'; if (parts.length === 0) return ''; return `נותר: ${parts.join(', ')}`; }
+      function populateStatusSelects() { const selects = [taskPrioritySelect, editTaskPrioritySelect]; selects.forEach(select => { if (!select) return; const currentVal = select.value; select.innerHTML = ''; if (appState.customStatuses.length === 0) { select.innerHTML = '<option value="" disabled>אין סטטוסים</option>'; select.disabled = true; return; } select.disabled = false; appState.customStatuses.forEach(status => { const option = document.createElement('option'); option.value = status.id; option.textContent = status.name; select.appendChild(option); }); if (appState.customStatuses.some(s => s.id === currentVal)) { select.value = currentVal; } else if (appState.customStatuses.length > 0) { select.value = appState.customStatuses[0].id; } }); }
+      function renderStatusManager() { if (!statusList) return; statusList.innerHTML = ''; const canDelete = appState.customStatuses.length > 1; if (appState.customStatuses.length === 0) { statusList.innerHTML = '<li>אין סטטוסים מוגדרים.</li>'; } else { appState.customStatuses.forEach(status => { const li = document.createElement('li'); li.dataset.statusId = status.id; li.innerHTML = ` <span class="status-color-indicator" style="background-color: ${escapeHTML(status.color)};"></span> <span class="status-name" title="${escapeHTML(status.name)}">${escapeHTML(status.name)}</span> <button class="delete-status-btn" data-status-id="${escapeHTML(status.id)}" title="מחק סטטוס" ${!canDelete ? 'disabled' : ''}>&times;</button> `; statusList.appendChild(li); }); } populateStatusSelects(); }
+      function renderTask(task) { const taskCard = document.createElement('div'); taskCard.className = 'task-card'; taskCard.draggable = true; taskCard.dataset.taskId = task.id; taskCard.dataset.taskDueDate = task.dueDate || ''; const statusInfo = getStatusInfo(task.status); const textColor = isLightColor(statusInfo.color) ? '#000' : '#fff'; let statusBadgeHTML = `<div class="status-badge ${escapeHTML(statusInfo.class)}" style="background-color: ${escapeHTML(statusInfo.color)}; color: ${textColor};" title="${escapeHTML(statusInfo.text)}">${escapeHTML(statusInfo.text)}</div>`; const titleDiv = document.createElement('div'); titleDiv.className = 'task-title'; titleDiv.textContent = task.title; const descriptionDiv = document.createElement('div'); descriptionDiv.className = 'task-description'; descriptionDiv.textContent = task.description; let dueDateHTML = ''; let countdownHTML = ''; let isDue = false; let targetDate = null; if (task.dueDate) { try { targetDate = new Date(task.dueDate); const now = new Date(); if (!isNaN(targetDate)) { const formattedDate = formatDateTime(task.dueDate); isDue = targetDate < now; dueDateHTML = `<div class="task-due-date"><strong>תאריך יעד:</strong> ${escapeHTML(formattedDate)}</div>`; const remainingTime = calculateRemainingTime(task.dueDate); if (remainingTime && !remainingTime.overdue) { countdownHTML = `<div class="task-countdown" data-due-date="${escapeHTML(task.dueDate)}">${formatCountdown(remainingTime)}</div>`; } else if (remainingTime && remainingTime.overdue) { countdownHTML = `<div class="task-countdown overdue" data-due-date="${escapeHTML(task.dueDate)}">זמן היעד עבר</div>`; } } else { console.warn(`Task ${task.id} has invalid dueDate in state: ${task.dueDate}`); taskCard.dataset.taskDueDate = ''; } } catch (e) { console.error(`Error parsing dueDate for task ${task.id}:`, e); taskCard.dataset.taskDueDate = ''; } } if (isDue) { taskCard.classList.add('due-alarm'); } taskCard.innerHTML = ` <div class="task-header"> ${titleDiv.outerHTML} <div class="task-status">${statusBadgeHTML}</div> </div> ${descriptionDiv.outerHTML} ${dueDateHTML} ${countdownHTML} <div class="task-actions"> <button class="edit-task-btn" title="עריכת משימה">✏️</button> <button class="delete-task-btn" title="מחיקת משימה">🗑️</button> </div>`; taskCard.addEventListener('dragstart', handleTaskDragStart); taskCard.addEventListener('dragend', handleTaskDragEnd); return taskCard; }
+      function renderColumn(column, boardId) { const columnDiv = document.createElement('div'); columnDiv.className = 'column'; columnDiv.id = column.id; columnDiv.dataset.columnId = column.id; columnDiv.dataset.boardId = boardId; columnDiv.draggable = true; const header = document.createElement('div'); header.className = 'column-header'; const title = document.createElement('div'); title.className = 'column-title'; title.textContent = column.title; title.title = column.title; const actions = document.createElement('div'); actions.className = 'column-actions'; actions.innerHTML = `<button class="edit-column-btn" title="שינוי שם עמודה">✏️</button><button class="delete-column-btn" title="מחיקת עמודה">🗑️</button>`; header.appendChild(title); header.appendChild(actions); const tasksContainer = document.createElement('div'); tasksContainer.className = 'tasks-container'; columnDiv.appendChild(header); columnDiv.appendChild(tasksContainer); column.tasks.forEach(task => { tasksContainer.appendChild(renderTask(task)); }); tasksContainer.addEventListener('dragover', handleTaskDragOver); tasksContainer.addEventListener('dragleave', handleTaskDragLeave); tasksContainer.addEventListener('drop', handleTaskDrop); columnDiv.addEventListener('dragstart', handleColumnDragStart); columnDiv.addEventListener('dragend', handleColumnDragEnd); return columnDiv; }
+      function renderBoard(board) { const boardDiv = document.createElement('div'); boardDiv.className = 'board'; boardDiv.id = board.id; if (board.id === appState.activeBoardId) { boardDiv.classList.add('active'); boardDiv.addEventListener('dragover', handleColumnDragOver); boardDiv.addEventListener('dragleave', handleColumnDragLeave); boardDiv.addEventListener('drop', handleColumnDrop); } board.columns.forEach(column => { boardDiv.appendChild(renderColumn(column, board.id)); }); const addColumnBtn = document.createElement('div'); addColumnBtn.className = 'add-column-btn'; addColumnBtn.textContent = '+ הוספת עמודה'; addColumnBtn.dataset.boardId = board.id; addColumnBtn.title = 'הוספת עמודה חדשה לפרויקט זה'; addColumnBtn.addEventListener('click', () => openAddColumnModal(board.id)); boardDiv.appendChild(addColumnBtn); return boardDiv; }
+      function renderTabs() { const addBtnRef = tabsContainer.querySelector('.new-tab-btn') || newTabBtn; tabsContainer.innerHTML = ''; tabsContainer.appendChild(addBtnRef); if (appState.boards.length === 0) { const noBoardsMsg = document.createElement('div'); noBoardsMsg.textContent = "אין פרויקטים. לחץ על '+' להוספה."; noBoardsMsg.style.cssText = 'padding: 10px 15px; color: var(--light); align-self: center;'; tabsContainer.insertBefore(noBoardsMsg, addBtnRef); } appState.boards.forEach(board => { const tab = document.createElement('div'); tab.className = 'tab'; tab.dataset.boardId = board.id; const titleSpan = document.createElement('span'); titleSpan.textContent = board.title; titleSpan.title = board.title; tab.appendChild(titleSpan); if (board.id === appState.activeBoardId) tab.classList.add('active'); tab.addEventListener('click', (e) => { if (e.target === tab || e.target === titleSpan) switchTab(board.id); }); const editBtn = document.createElement('button'); editBtn.innerHTML = '✏️'; editBtn.className = 'edit-tab-btn'; editBtn.title = 'שנה שם פרויקט'; editBtn.setAttribute('aria-label', `ערוך ${escapeHTML(board.title)}`); editBtn.onclick = (e) => { e.stopPropagation(); editBoardTitle(board.id); }; tab.appendChild(editBtn); const deleteBtn = document.createElement('button'); deleteBtn.innerHTML = '&times;'; deleteBtn.className = 'delete-tab-btn'; deleteBtn.title = 'מחק פרויקט'; deleteBtn.setAttribute('aria-label', `מחק ${escapeHTML(board.title)}`); deleteBtn.onclick = (e) => { e.stopPropagation(); deleteBoard(board.id); }; tab.appendChild(deleteBtn); tabsContainer.insertBefore(tab, addBtnRef); }); }
+      function renderApp() { console.time("renderApp"); renderStatusManager(); renderTabs(); boardsContainer.querySelectorAll('.board').forEach(b => { b.removeEventListener('dragover', handleColumnDragOver); b.removeEventListener('dragleave', handleColumnDragLeave); b.removeEventListener('drop', handleColumnDrop); }); boardsContainer.innerHTML = ''; appState.boards.forEach(board => { boardsContainer.appendChild(renderBoard(board)); }); const activeBoardEl = appState.activeBoardId ? document.getElementById(appState.activeBoardId) : null; if (activeBoardEl) { document.querySelectorAll('.board.active').forEach(b => b.classList.remove('active')); activeBoardEl.classList.add('active'); activeBoardEl.removeEventListener('dragover', handleColumnDragOver); activeBoardEl.removeEventListener('dragleave', handleColumnDragLeave); activeBoardEl.removeEventListener('drop', handleColumnDrop); activeBoardEl.addEventListener('dragover', handleColumnDragOver); activeBoardEl.addEventListener('dragleave', handleColumnDragLeave); activeBoardEl.addEventListener('drop', handleColumnDrop); } else if (appState.boards.length > 0) { console.warn(`Active board ID ${appState.activeBoardId} invalid/missing. Activating first.`); appState.activeBoardId = appState.boards[0].id; // No saveState here, relies on validation
+           const firstBoardEl = document.getElementById(appState.activeBoardId); if(firstBoardEl) { firstBoardEl.classList.add('active'); firstBoardEl.addEventListener('dragover', handleColumnDragOver); firstBoardEl.addEventListener('dragleave', handleColumnDragLeave); firstBoardEl.addEventListener('drop', handleColumnDrop); document.querySelectorAll('.tab.active').forEach(t => t.classList.remove('active')); const activeTab = tabsContainer.querySelector(`.tab[data-board-id="${appState.activeBoardId}"]`); if(activeTab) activeTab.classList.add('active'); } } else { boardsContainer.innerHTML = '<div style="padding: 30px; color: #777; text-align: center; width: 100%;">הוסף פרויקט באמצעות כפתור ה-\'+\' למעלה כדי להתחיל.</div>'; } setupDelegatedListeners(); checkDueDates(); console.timeEnd("renderApp"); }
+      let draggedTaskElement = null; let sourceTaskColumnId = null; let sourceTaskBoardId = null; function handleTaskDragStart(e) { if (!e.target.classList.contains('task-card')) { e.preventDefault(); return; } e.stopPropagation(); draggedTaskElement = e.target; const sourceColumn = draggedTaskElement.closest('.column'); const sourceBoard = draggedTaskElement.closest('.board'); if (!sourceColumn || !sourceBoard) { e.preventDefault(); return; } sourceTaskColumnId = sourceColumn.dataset.columnId; sourceTaskBoardId = sourceBoard.id; e.dataTransfer.setData('text/plain', draggedTaskElement.dataset.taskId); e.dataTransfer.effectAllowed = 'move'; setTimeout(() => { if(draggedTaskElement) draggedTaskElement.classList.add('dragging'); }, 0); } function handleTaskDragEnd(e) { if (draggedTaskElement) { draggedTaskElement.classList.remove('dragging'); } draggedTaskElement = null; sourceTaskColumnId = null; sourceTaskBoardId = null; document.querySelectorAll('.tasks-container.drag-over').forEach(el => el.classList.remove('drag-over')); } function handleTaskDragOver(e) { if (!draggedTaskElement) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; const targetContainer = e.target.closest('.tasks-container'); if (targetContainer) { if (!targetContainer.classList.contains('drag-over')) { document.querySelectorAll('.tasks-container.drag-over').forEach(el => el.classList.remove('drag-over')); targetContainer.classList.add('drag-over'); } } else { document.querySelectorAll('.tasks-container.drag-over').forEach(el => el.classList.remove('drag-over')); } } function handleTaskDragLeave(e) { if (!draggedTaskElement) return; const tasksContainer = e.target.closest('.tasks-container'); if (tasksContainer && (!e.relatedTarget || !tasksContainer.contains(e.relatedTarget))) { tasksContainer.classList.remove('drag-over'); } } function handleTaskDrop(e) { if (!draggedTaskElement) { return; } e.preventDefault(); e.stopPropagation(); const targetTasksContainer = e.target.closest('.tasks-container'); if (!targetTasksContainer) { handleTaskDragEnd(e); return; } targetTasksContainer.classList.remove('drag-over'); const targetColumnElement = targetTasksContainer.closest('.column'); if (!targetColumnElement) { console.error("Task Drop error: No parent column."); handleTaskDragEnd(e); return; } const targetColumnId = targetColumnElement.dataset.columnId; const targetBoardId = targetColumnElement.dataset.boardId; const taskId = e.dataTransfer.getData('text/plain'); const board = appState.boards.find(b => b.id === targetBoardId); if (!board) { console.error("Task Drop error: Board state not found."); handleTaskDragEnd(e); return; } const sourceColumn = board.columns.find(c => c.id === sourceTaskColumnId); const targetColumn = board.columns.find(c => c.id === targetColumnId); if (!sourceColumn || !targetColumn) { console.error("Task Drop error: Column state not found."); handleTaskDragEnd(e); return; } const taskIndex = sourceColumn.tasks.findIndex(t => t.id === taskId); if (taskIndex === -1) { console.error(`Task Drop error: Task ${taskId} not in source state.`); handleTaskDragEnd(e); return; } const [taskToMove] = sourceColumn.tasks.splice(taskIndex, 1); const dropY = e.clientY; const tasksInTarget = Array.from(targetTasksContainer.querySelectorAll('.task-card:not(.dragging)')); let insertBeforeTaskElement = null; for (const taskElement of tasksInTarget) { const rect = taskElement.getBoundingClientRect(); if (dropY < rect.top + rect.height / 2) { insertBeforeTaskElement = taskElement; break; } } let targetStateIndex; if (insertBeforeTaskElement) { const insertBeforeTaskId = insertBeforeTaskElement.dataset.taskId; targetStateIndex = targetColumn.tasks.findIndex(t => t.id === insertBeforeTaskId); if (targetStateIndex === -1) targetStateIndex = targetColumn.tasks.length; } else { targetStateIndex = targetColumn.tasks.length; } targetColumn.tasks.splice(targetStateIndex, 0, taskToMove); if (insertBeforeTaskElement) { targetTasksContainer.insertBefore(draggedTaskElement, insertBeforeTaskElement); } else { targetTasksContainer.appendChild(draggedTaskElement); } saveState(); handleTaskDragEnd(e); }
+      let draggedColumnElement = null; let sourceColumnBoardId = null; let placeholder = null; function createPlaceholder() { if (!placeholder) { placeholder = document.createElement('div'); placeholder.className = 'column-drag-over-placeholder'; } return placeholder; } function handleColumnDragStart(e) { if (!e.target.classList.contains('column') || e.target.closest('.tasks-container') || e.target.closest('.column-header')) { if (!draggedTaskElement) { e.preventDefault(); } return; } if (draggedTaskElement) { e.preventDefault(); return; } draggedColumnElement = e.target; sourceColumnBoardId = draggedColumnElement.closest('.board').id; if (sourceColumnBoardId !== appState.activeBoardId) { e.preventDefault(); draggedColumnElement = null; return; } e.dataTransfer.setData('text/plain', draggedColumnElement.dataset.columnId); e.dataTransfer.effectAllowed = 'move'; setTimeout(() => { if(draggedColumnElement) draggedColumnElement.classList.add('dragging'); }, 0); placeholder = createPlaceholder(); } function handleColumnDragEnd(e) { if (draggedColumnElement) { draggedColumnElement.classList.remove('dragging'); } placeholder?.remove(); placeholder = null; draggedColumnElement = null; sourceColumnBoardId = null; } function handleColumnDragOver(e) { if (!draggedColumnElement || draggedTaskElement) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; const boardElement = e.target.closest('.board.active'); if (!boardElement || !placeholder) return; const afterElement = getColumnDragAfterElement(boardElement, e.clientX); const addBtn = boardElement.querySelector('.add-column-btn'); if (afterElement == null) { if (addBtn) boardElement.insertBefore(placeholder, addBtn); else boardElement.appendChild(placeholder); } else { boardElement.insertBefore(placeholder, afterElement); } } function getColumnDragAfterElement(boardElement, x) { const draggableColumns = [...boardElement.querySelectorAll('.column:not(.dragging):not(.add-column-btn)')]; return draggableColumns.reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = x - (box.left + box.width / 2); if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } else { return closest; } }, { offset: Number.NEGATIVE_INFINITY }).element; } function handleColumnDragLeave(e) { if (!draggedColumnElement || draggedTaskElement) return; const boardElement = e.target.closest('.board.active'); if (placeholder && boardElement && (!e.relatedTarget || !boardElement.contains(e.relatedTarget))) { placeholder.remove(); } } function handleColumnDrop(e) { if (!draggedColumnElement || draggedTaskElement) { if(placeholder) placeholder.remove(); return; } e.preventDefault(); const boardElement = e.target.closest('.board.active'); if (!boardElement || !placeholder || !placeholder.parentNode) { console.error("Column Drop failed: Invalid target or placeholder."); handleColumnDragEnd(e); return; } const targetBoardId = boardElement.id; const columnId = e.dataTransfer.getData('text/plain'); const board = appState.boards.find(b => b.id === targetBoardId); if (!board) { console.error("Column Drop error: Target board state missing."); handleColumnDragEnd(e); return; } const sourceColumnIndex = board.columns.findIndex(c => c.id === columnId); if (sourceColumnIndex === -1) { console.error(`Column Drop error: Source col ${columnId} not found.`); handleColumnDragEnd(e); return; } const [columnToMove] = board.columns.splice(sourceColumnIndex, 1); let elementAfterPlaceholder = placeholder.nextElementSibling; while(elementAfterPlaceholder && !elementAfterPlaceholder.classList.contains('column')){ elementAfterPlaceholder = elementAfterPlaceholder.nextElementSibling; } let targetStateIndex; if (elementAfterPlaceholder) { const elementAfterId = elementAfterPlaceholder.dataset.columnId; targetStateIndex = board.columns.findIndex(c => c.id === elementAfterId); if (targetStateIndex === -1) targetStateIndex = board.columns.length; } else { targetStateIndex = board.columns.length; } board.columns.splice(targetStateIndex, 0, columnToMove); placeholder.parentNode.insertBefore(draggedColumnElement, placeholder); saveState(); handleColumnDragEnd(e); }
+      function switchTab(boardId) { if (appState.activeBoardId === boardId) return; const oldActiveBoard = appState.activeBoardId ? document.getElementById(appState.activeBoardId) : null; if(oldActiveBoard) { oldActiveBoard.removeEventListener('dragover', handleColumnDragOver); oldActiveBoard.removeEventListener('dragleave', handleColumnDragLeave); oldActiveBoard.removeEventListener('drop', handleColumnDrop); oldActiveBoard.classList.remove('active'); } appState.activeBoardId = boardId; tabsContainer.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.boardId === boardId)); const newActiveBoard = document.getElementById(boardId); if(newActiveBoard) { boardsContainer.querySelectorAll('.board.active').forEach(b => b.classList.remove('active')); newActiveBoard.classList.add('active'); newActiveBoard.removeEventListener('dragover', handleColumnDragOver); newActiveBoard.removeEventListener('dragleave', handleColumnDragLeave); newActiveBoard.removeEventListener('drop', handleColumnDrop); newActiveBoard.addEventListener('dragover', handleColumnDragOver); newActiveBoard.addEventListener('dragleave', handleColumnDragLeave); newActiveBoard.addEventListener('drop', handleColumnDrop); checkDueDates(); updateCountdowns(); } else { console.error(`SwitchTab Error: Board element ${boardId} not found.`); } const activeTabElement = tabsContainer.querySelector('.tab.active'); if (activeTabElement) activeTabElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); saveState(); }
+      function openAddColumnModal(boardId) { const board = appState.boards.find(b => b.id === boardId); if (!board) return; document.getElementById('addColumnBoardId').value = boardId; addColumnModal.classList.add('active'); document.getElementById('columnTitle').focus(); }
+      function openAddBoardModal() { addBoardModal.classList.add('active'); document.getElementById('boardTitle').focus(); }
+      function openEditTaskModal(taskId, columnId, boardId) { const board = appState.boards.find(b => b.id === boardId); if (!board) return; const column = board.columns.find(c => c.id === columnId); if (!column) return; const task = column.tasks.find(t => t.id === taskId); if (!task) return; console.log(`Opening edit modal for task: ${taskId}`); document.getElementById('editTaskId').value = task.id; document.getElementById('editTaskColumnId').value = columnId; document.getElementById('editTaskBoardId').value = boardId; document.getElementById('editTaskTitle').value = task.title; document.getElementById('editTaskDescription').value = task.description || ''; populateStatusSelects(); editTaskPrioritySelect.value = task.status || (appState.customStatuses[0]?.id || ''); if (task.dueDate && typeof task.dueDate === 'string' && task.dueDate.includes('T')) { const [datePart, timePart] = task.dueDate.split('T'); editTaskDueDateDateInput.value = datePart || ''; editTaskDueDateTimeInput.value = timePart || ''; } else { editTaskDueDateDateInput.value = ''; editTaskDueDateTimeInput.value = ''; } editTaskModal.classList.add('active'); document.getElementById('editTaskTitle').focus(); }
+      function closeModal(modalId) { const modal = document.getElementById(modalId); if (modal) { modal.classList.remove('active'); const form = modal.querySelector('form'); if(form) form.reset(); const colorInput = modal.querySelector('input[type="color"]'); if (colorInput) colorInput.value = '#3498db'; } }
+      statusForm.addEventListener('submit', (e) => { e.preventDefault(); const nameInput = document.getElementById('statusName'); const colorInput = document.getElementById('statusColor'); const statusName = nameInput.value.trim(); const statusColor = colorInput.value; if (!statusName) { alert("שם הסטטוס חובה."); nameInput.focus(); return; } if (appState.customStatuses.some(s => s.name.toLowerCase() === statusName.toLowerCase())) { alert("סטטוס עם שם זה קיים."); nameInput.focus(); return; } const newStatus = { id: generateId('status'), name: statusName, color: statusColor }; appState.customStatuses.push(newStatus); saveState(); renderStatusManager(); statusForm.reset(); colorInput.value = '#3498db'; nameInput.focus(); });
+      taskForm.addEventListener('submit', (e) => { e.preventDefault(); if (!appState.activeBoardId) { alert("אנא בחר פרויקט."); return; } const activeBoard = appState.boards.find(b => b.id === appState.activeBoardId); if (!activeBoard) { alert("פרויקט פעיל לא נמצא."); return; } if (activeBoard.columns.length === 0) { if (confirm("אין עמודות. להוסיף עמודה?")) { openAddColumnModal(appState.activeBoardId); } else { alert("לא ניתן להוסיף משימה."); } return; } const taskTitle = document.getElementById('taskTitle').value.trim(); const taskDescription = document.getElementById('taskDescription').value.trim(); const taskStatusId = taskPrioritySelect.value; const taskDueDate = taskDueDateDateInput.value; const taskDueTime = taskDueDateTimeInput.value; if (!taskTitle) { alert("כותרת חובה."); document.getElementById('taskTitle').focus(); return; } if (!taskStatusId) { alert("סטטוס חובה."); taskPrioritySelect.focus(); return; } let combinedDueDate = null; if (taskDueDate && taskDueTime) { combinedDueDate = `${taskDueDate}T${taskDueTime}`; } else if (taskDueDate) { alert("יש לספק גם שעת יעד אם נבחר תאריך יעד."); taskDueDateTimeInput.focus(); return; } const newTask = { id: generateId('task'), title: taskTitle, description: taskDescription, status: taskStatusId, dueDate: combinedDueDate }; activeBoard.columns[0].tasks.push(newTask); saveState(); const firstColTasks = document.querySelector(`#${appState.activeBoardId} .column:first-child .tasks-container`); if (firstColTasks) { const newTaskElement = renderTask(newTask); firstColTasks.appendChild(newTaskElement); checkDueDates(); updateCountdowns(); } else { console.error("First column tasks container missing. Re-rendering."); renderApp(); } taskForm.reset(); populateStatusSelects(); document.getElementById('taskTitle').focus(); });
+      addColumnForm.addEventListener('submit', (e) => { e.preventDefault(); const columnTitle = document.getElementById('columnTitle').value.trim(); const boardId = document.getElementById('addColumnBoardId').value; if (!columnTitle) { alert("שם עמודה חובה."); document.getElementById('columnTitle').focus(); return; } if (!boardId) { alert("Error: No board ID."); return; } const board = appState.boards.find(b => b.id === boardId); if (!board) { alert(`Error: Board ${boardId} not found.`); return; } const newColumn = { id: generateId('col'), title: columnTitle, tasks: [] }; board.columns.push(newColumn); saveState(); const boardElement = document.getElementById(boardId); if (boardElement?.classList.contains('active')) { const addColumnBtnElement = boardElement.querySelector('.add-column-btn'); const renderedColumn = renderColumn(newColumn, boardId); if (addColumnBtnElement) { boardElement.insertBefore(renderedColumn, addColumnBtnElement); } else { boardElement.appendChild(renderedColumn); } } closeModal('addColumnModal'); });
+      addBoardForm.addEventListener('submit', (e) => { e.preventDefault(); const boardTitle = document.getElementById('boardTitle').value.trim(); if (!boardTitle) { alert("שם פרויקט חובה."); document.getElementById('boardTitle').focus(); return; } const newBoardId = generateId('board'); const newBoard = { id: newBoardId, title: boardTitle, columns: [ { id: generateId('col'), title: 'רעיונות', tasks: [] }, { id: generateId('col'), title: 'לביצוע', tasks: [] }, { id: generateId('col'), title: 'הושלם', tasks: [] } ]}; appState.boards.push(newBoard); appState.activeBoardId = newBoardId; saveState(); renderApp(); closeModal('addBoardModal'); const newTab = tabsContainer.querySelector(`.tab[data-board-id="${newBoardId}"]`); newTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); });
+      editTaskForm.addEventListener('submit', (e) => { e.preventDefault(); const taskId = document.getElementById('editTaskId').value; const colId = document.getElementById('editTaskColumnId').value; const boardId = document.getElementById('editTaskBoardId').value; const title = document.getElementById('editTaskTitle').value.trim(); const desc = document.getElementById('editTaskDescription').value.trim(); const statusId = editTaskPrioritySelect.value; const dueDate = editTaskDueDateDateInput.value; const dueTime = editTaskDueDateTimeInput.value; if (!taskId || !colId || !boardId) { alert("שגיאה: חסרים פרטים."); return; } if (!title) { alert("כותרת חובה."); return; } if (!statusId) { alert("סטטוס חובה."); return; } let combinedDueDate = null; if (dueDate && dueTime) { combinedDueDate = `${dueDate}T${dueTime}`; } else if (dueDate) { alert("יש לספק גם שעת יעד אם נבחר תאריך יעד."); editTaskDueDateTimeInput.focus(); return; } const board = appState.boards.find(b => b.id === boardId); if (!board) { alert("שגיאה: פרויקט לא קיים."); return; } const col = board.columns.find(c => c.id === colId); if (!col) { alert("שגיאה: עמודה לא קיימת."); return; } const taskIdx = col.tasks.findIndex(t => t.id === taskId); if (taskIdx === -1) { alert("שגיאה: משימה לא קיימת."); return; } col.tasks[taskIdx] = { ...col.tasks[taskIdx], title, description: desc, status: statusId, dueDate: combinedDueDate }; saveState(); const taskEl = document.querySelector(`.task-card[data-task-id="${taskId}"]`); if (taskEl) { taskEl.querySelector('.task-title').textContent = title; taskEl.querySelector('.task-description').textContent = desc; taskEl.dataset.taskDueDate = combinedDueDate || ''; const statusInfo = getStatusInfo(statusId); const textColor = isLightColor(statusInfo.color) ? '#000' : '#fff'; const statusHTML = `<div class="status-badge ${escapeHTML(statusInfo.class)}" style="background-color:${escapeHTML(statusInfo.color)};color:${textColor};" title="${escapeHTML(statusInfo.text)}">${escapeHTML(statusInfo.text)}</div>`; taskEl.querySelector('.task-status').innerHTML = statusHTML; const dueDateDisplay = taskEl.querySelector('.task-due-date'); let isDue = false; if (combinedDueDate) { try { const dueDateObj = new Date(combinedDueDate); if (!isNaN(dueDateObj)) { const formattedDate = formatDateTime(combinedDueDate); isDue = dueDateObj < new Date(); const dueDateHTML = `<strong>תאריך יעד:</strong> ${escapeHTML(formattedDate)}`; if (dueDateDisplay) { dueDateDisplay.innerHTML = dueDateHTML; } else { const newDueDateDiv = document.createElement('div'); newDueDateDiv.className = 'task-due-date'; newDueDateDiv.innerHTML = dueDateHTML; const actionsDiv = taskEl.querySelector('.task-actions'); taskEl.insertBefore(newDueDateDiv, actionsDiv); } } else { isDue = false; dueDateDisplay?.remove(); } } catch(e) { isDue = false; dueDateDisplay?.remove(); } } else { isDue = false; dueDateDisplay?.remove(); } taskEl.classList.toggle('due-alarm', isDue); let countdownEl = taskEl.querySelector('.task-countdown'); const remainingTime = calculateRemainingTime(combinedDueDate); if (remainingTime && !remainingTime.overdue) { const countdownText = formatCountdown(remainingTime); if (countdownEl) { countdownEl.textContent = countdownText; countdownEl.dataset.dueDate = combinedDueDate; countdownEl.classList.remove('overdue'); } else { countdownEl = document.createElement('div'); countdownEl.className = 'task-countdown'; countdownEl.dataset.dueDate = combinedDueDate; countdownEl.textContent = countdownText; const insertBeforeEl = taskEl.querySelector('.task-actions'); const currentDueDateEl = taskEl.querySelector('.task-due-date'); if (currentDueDateEl) { currentDueDateEl.after(countdownEl); } else { taskEl.insertBefore(countdownEl, insertBeforeEl); } } } else { if(remainingTime && remainingTime.overdue) { if(countdownEl) { countdownEl.textContent = formatCountdown(remainingTime); countdownEl.classList.add('overdue'); countdownEl.dataset.dueDate = combinedDueDate; } else { countdownEl = document.createElement('div'); countdownEl.className = 'task-countdown overdue'; countdownEl.dataset.dueDate = combinedDueDate; countdownEl.textContent = formatCountdown(remainingTime); const insertBeforeEl = taskEl.querySelector('.task-actions'); const currentDueDateEl = taskEl.querySelector('.task-due-date'); if (currentDueDateEl) { currentDueDateEl.after(countdownEl); } else { taskEl.insertBefore(countdownEl, insertBeforeEl); } } } else { countdownEl?.remove(); } } } else { console.warn(`Task element ${taskId} not found for direct update. Re-rendering.`); renderApp(); } closeModal('editTaskModal'); });
+      function deleteTask(taskId, columnId, boardId) { const board=appState.boards.find(b=>b.id===boardId); const col=board?.columns.find(c=>c.id===columnId); const task=col?.tasks.find(t=>t.id===taskId); const taskTitle=task?task.title:'המשימה'; if (!confirm(`למחוק ${taskTitle}?`)) return; if(!board||!col||!task){alert("Error finding task to delete."); renderApp(); return;} const taskIndex=col.tasks.findIndex(t=>t.id===taskId); if(taskIndex>-1){ col.tasks.splice(taskIndex, 1); saveState(); const taskEl=document.querySelector(`.task-card[data-task-id="${taskId}"]`); if(taskEl){ taskEl.style.transition='opacity .3s, transform .3s, height .3s, margin .3s, padding .3s, border .3s'; taskEl.style.opacity='0'; taskEl.style.transform='scale(0.9)'; taskEl.style.height='0'; taskEl.style.margin='0'; taskEl.style.padding='0'; taskEl.style.border='none'; setTimeout(()=>taskEl.remove(), 300); } else { renderApp(); } } }
+      function deleteColumn(columnId, boardId) { const board=appState.boards.find(b=>b.id===boardId); if(!board) return; const colIndex=board.columns.findIndex(c=>c.id===columnId); if(colIndex===-1) return; const col=board.columns[colIndex]; if(!confirm(`למחוק עמודה "${col.title}" (${col.tasks.length} משימות)?`)) return; board.columns.splice(colIndex, 1); saveState(); const colEl=document.getElementById(columnId); if(colEl){ colEl.style.transition='opacity .3s, transform .3s, width .3s, margin .3s, padding .3s, border .3s, min-width .3s'; colEl.style.opacity='0'; colEl.style.transform='scaleY(0.9)'; colEl.style.minWidth='0'; colEl.style.width='0'; colEl.style.margin='0'; colEl.style.padding='0'; colEl.style.border='none'; setTimeout(()=>colEl.remove(), 300); } else { renderApp(); } }
+      function deleteBoard(boardId) { const boardIndex = appState.boards.findIndex(b => b.id === boardId); if (boardIndex === -1) return; const board = appState.boards[boardIndex]; const taskCount = board.columns.reduce((sum, col) => sum + col.tasks.length, 0); if (!confirm(`למחוק פרויקט "${board.title}" (${taskCount} משימות)?`)) return; appState.boards.splice(boardIndex, 1); if (appState.activeBoardId === boardId) { appState.activeBoardId = appState.boards.length > 0 ? appState.boards[0].id : null; } saveState(); renderApp(); }
+      function editColumnTitle(columnId, boardId) { const board = appState.boards.find(b => b.id === boardId); if (!board) return; const column = board.columns.find(c => c.id === columnId); if (!column) return; const currentTitle = column.title; const newTitle = prompt(`שם חדש לעמודה "${currentTitle}":`, currentTitle); if (newTitle === null) return; const finalTitle = newTitle.trim(); if (finalTitle && finalTitle !== currentTitle) { column.title = finalTitle; saveState(); const colEl = document.getElementById(columnId); if (colEl) { const titleEl = colEl.querySelector('.column-title'); if (titleEl) { titleEl.textContent = finalTitle; titleEl.title = finalTitle; } } else { renderApp(); } } else if (!finalTitle) { alert("שם עמודה ריק לא תקין."); } }
+      function editBoardTitle(boardId) { const boardIndex = appState.boards.findIndex(b => b.id === boardId); if (boardIndex === -1) return; const currentTitle = appState.boards[boardIndex].title; const newTitle = prompt(`שם חדש לפרויקט "${currentTitle}":`, currentTitle); if (newTitle === null) return; const finalTitle = newTitle.trim(); if (finalTitle && finalTitle !== currentTitle) { appState.boards[boardIndex].title = finalTitle; saveState(); const tabEl = tabsContainer.querySelector(`.tab[data-board-id="${boardId}"]`); if (tabEl) { const titleSpan = tabEl.querySelector('span'); if (titleSpan) { titleSpan.textContent = finalTitle; titleSpan.title = finalTitle; } const editBtn = tabEl.querySelector('.edit-tab-btn'); if(editBtn) editBtn.setAttribute('aria-label', `ערוך ${escapeHTML(finalTitle)}`); const delBtn = tabEl.querySelector('.delete-tab-btn'); if(delBtn) delBtn.setAttribute('aria-label', `מחק ${escapeHTML(finalTitle)}`); } else { renderTabs(); } } else if (!finalTitle) { alert("שם פרויקט ריק לא תקין."); } }
+      function deleteStatus(statusIdToDelete) { if (appState.customStatuses.length <= 1) { alert("לא ניתן למחוק את הסטטוס האחרון."); return; } const statusIndex = appState.customStatuses.findIndex(s => s.id === statusIdToDelete); if (statusIndex === -1) { console.error(`Status with ID ${statusIdToDelete} not found.`); return; } const statusToDelete = appState.customStatuses[statusIndex]; if (!confirm(`האם אתה בטוח שברצונך למחוק את הסטטוס "${statusToDelete.name}"? משימות המשתמשות בסטטוס זה יועברו לסטטוס ברירת המחדל.`)) { return; } let replacementStatusId = null; if (appState.customStatuses.length > 1) { replacementStatusId = appState.customStatuses[0].id === statusIdToDelete ? appState.customStatuses[1].id : appState.customStatuses[0].id; } if (replacementStatusId === null) { alert("שגיאה: לא נמצא סטטוס חלופי."); return; } let tasksUpdatedCount = 0; appState.boards.forEach(board => { board.columns.forEach(column => { column.tasks.forEach(task => { if (task.status === statusIdToDelete) { task.status = replacementStatusId; tasksUpdatedCount++; } }); }); }); if (tasksUpdatedCount > 0) { console.log(`Updated ${tasksUpdatedCount} tasks to status ${replacementStatusId}.`); } appState.customStatuses.splice(statusIndex, 1); saveState(); renderApp(); }
+      let dueDateCheckInterval = null; let countdownInterval = null;
+      function checkDueDates() { const now = new Date(); let changed = false; const activeBoardId = appState.activeBoardId; if (!activeBoardId) return; const board = appState.boards.find(b => b.id === activeBoardId); if (!board) return; board.columns.forEach(column => { column.tasks.forEach(task => { const taskElement = document.querySelector(`.task-card[data-task-id="${task.id}"]`); if (!taskElement) return; let shouldHaveAlarm = false; if (task.dueDate) { try { const dueDate = new Date(task.dueDate); if (!isNaN(dueDate) && dueDate < now) { shouldHaveAlarm = true; } } catch (e) { /* Ignore */ } } const hasAlarm = taskElement.classList.contains('due-alarm'); if (shouldHaveAlarm && !hasAlarm) { taskElement.classList.add('due-alarm'); changed = true; const countdownEl = taskElement.querySelector('.task-countdown'); if(countdownEl && !countdownEl.classList.contains('overdue')) { countdownEl.textContent = 'זמן היעד עבר'; countdownEl.classList.add('overdue'); } } else if (!shouldHaveAlarm && hasAlarm) { taskElement.classList.remove('due-alarm'); changed = true; } }); }); }
+      function updateCountdowns() { const activeBoard = document.querySelector('.board.active'); if (!activeBoard) return; const countdownElements = activeBoard.querySelectorAll('.task-countdown:not(.overdue)'); countdownElements.forEach(el => { const dueDateString = el.dataset.dueDate; if (!dueDateString) { el.remove(); return; } const remaining = calculateRemainingTime(dueDateString); if (remaining) { el.textContent = formatCountdown(remaining); if (remaining.overdue) { el.classList.add('overdue'); const taskCard = el.closest('.task-card'); if(taskCard && !taskCard.classList.contains('due-alarm')) { taskCard.classList.add('due-alarm'); console.log(`Added due-alarm via countdown for task ${taskCard.dataset.taskId}`); } } } else { el.remove(); } }); }
+      function startTimers() { if (dueDateCheckInterval) clearInterval(dueDateCheckInterval); if (countdownInterval) clearInterval(countdownInterval); dueDateCheckInterval = setInterval(checkDueDates, 30 * 1000); countdownInterval = setInterval(updateCountdowns, 1000); console.log("Due date checker and countdown timer started."); checkDueDates(); updateCountdowns(); }
+      let boardClickListener = null; let sidebarClickListener = null;
+      function setupDelegatedListeners() { if (boardClickListener) boardsContainer.removeEventListener('click', boardClickListener); boardClickListener = function(e) { const editTaskBtn = e.target.closest('.edit-task-btn'); const delTaskBtn = e.target.closest('.delete-task-btn'); const editColBtn = e.target.closest('.edit-column-btn'); const delColBtn = e.target.closest('.delete-column-btn'); const taskCard = e.target.closest('.task-card'); const colEl = e.target.closest('.column'); const boardEl = e.target.closest('.board'); if (editTaskBtn && taskCard && colEl && boardEl) openEditTaskModal(taskCard.dataset.taskId, colEl.dataset.columnId, boardEl.id); else if (delTaskBtn && taskCard && colEl && boardEl) deleteTask(taskCard.dataset.taskId, colEl.dataset.columnId, boardEl.id); else if (editColBtn && colEl && boardEl) editColumnTitle(colEl.dataset.columnId, boardEl.id); else if (delColBtn && colEl && boardEl) deleteColumn(colEl.dataset.columnId, boardEl.id); }; boardsContainer.addEventListener('click', boardClickListener); if (sidebarClickListener) sidebarContainer.removeEventListener('click', sidebarClickListener); sidebarClickListener = function(e) { const deleteStatusBtn = e.target.closest('.delete-status-btn'); if (deleteStatusBtn && !deleteStatusBtn.disabled) { const statusId = deleteStatusBtn.dataset.statusId; if (statusId) deleteStatus(statusId); else console.error("Delete status button clicked, but no status ID found."); } }; sidebarContainer.addEventListener('click', sidebarClickListener); document.querySelectorAll('.modal').forEach(modal => { modal.removeEventListener('click', closeModalHandler); modal.addEventListener('click', closeModalHandler); }); }
+      function closeModalHandler(e) { const modal = e.currentTarget; if (e.target === modal) closeModal(modal.id); const closeButton = e.target.closest('.close-modal-btn, .cancel-btn'); if (closeButton && closeButton.dataset.modalId === modal.id) closeModal(modal.id); }
 
-                  const validStatusIds = new Set();
-                  appState.customStatuses.forEach(status => {
-                      status.id = status.id || generateId('status');
-                      validStatusIds.add(status.id);
-                      status.name = status.name || 'סטטוס ללא שם';
-                      status.color = status.color || '#bdc3c7';
-                  });
-                  if (appState.customStatuses.length === 0) {
-                      initializeAppState(true);
-                      appState.customStatuses.forEach(s => validStatusIds.add(s.id));
-                  }
-                  const defaultStatusId = appState.customStatuses.length > 0 ? appState.customStatuses[0].id : null;
-
-                  appState.boards.forEach(board => {
-                      board.id = board.id || generateId('board');
-                      board.title = board.title || 'פרויקט ללא שם';
-                      board.columns = Array.isArray(board.columns) ? board.columns : [];
-                      board.columns.forEach(col => {
-                          col.id = col.id || generateId('col');
-                          col.title = col.title || 'עמודה ללא שם';
-                          col.tasks = Array.isArray(col.tasks) ? col.tasks : [];
-                          col.tasks.forEach(task => {
-                              task.id = task.id || generateId('task');
-                              task.title = task.title || 'משימה ללא שם';
-                              task.description = task.description || '';
-                              if (!task.status || !validStatusIds.has(task.status)) {
-                                  task.status = defaultStatusId;
-                              }
-                              task.dueDate = task.dueDate || null;
-                              if (task.dueDate && typeof task.dueDate === 'string') {
-                                  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(task.dueDate)) {
-                                       try {
-                                          const d = new Date(task.dueDate);
-                                          if (isNaN(d)) {
-                                              console.warn(`Invalid dueDate format for task ${task.id}, resetting:`, task.dueDate);
-                                              task.dueDate = null;
-                                          } else {
-                                              task.dueDate = d.toISOString().slice(0, 16);
-                                              // console.log(`Converted old date format for task ${task.id} to ${task.dueDate}`);
-                                          }
-                                       } catch(e) {
-                                           console.warn(`Error parsing/converting dueDate for task ${task.id}, resetting:`, task.dueDate);
-                                           task.dueDate = null;
-                                       }
-                                  }
-                              } else if (task.dueDate !== null) {
-                                  task.dueDate = null;
-                              }
-                          });
-                      });
-                  });
-              } catch (e) {
-                  console.error("Error parsing state:", e);
-                  if (confirm("שגיאה בטעינת נתונים. לאפס לברירת מחדל?")) {
-                      initializeAppState();
-                      saveState();
-                  } else {
-                      appState = { boards: [], activeBoardId: null, customStatuses: [] };
-                      initializeAppState();
-                  }
-              }
-          } else {
-              initializeAppState();
-              saveState();
-          }
-
-          if (appState.boards.length > 0) {
-              if (!appState.activeBoardId || !appState.boards.find(b => b.id === appState.activeBoardId)) {
-                  appState.activeBoardId = appState.boards[0].id;
-              }
-          } else {
-              appState.activeBoardId = null;
-          }
+      // --- MODIFIED: saveState Function for Firebase ---
+      function saveState() {
+        try {
+          // Use dbRef defined after Firebase initialization
+          dbRef.set(appState)
+            .then(() => {
+              // Optional: Show feedback, but can be noisy
+              // console.log("State saved to Firebase successfully.");
+            })
+            .catch((error) => {
+              console.error("Error saving state to Firebase:", error);
+              alert("שגיאה בשמירת הנתונים לענן. השינויים האחרונים לא נשמרו.");
+              // Consider adding more robust error handling / retry mechanism
+            });
+        } catch (e) {
+          // This catches errors *before* sending to Firebase (e.g., JSON stringify issues, though unlikely here)
+          console.error("Error preparing state for Firebase:", e);
+          alert("שגיאה קריטית בשמירת הנתונים.");
+        }
       }
-      function initializeDefaultStatuses() { appState.customStatuses = [ { id: generateId('status'), name: 'רגיל', color: '#3498db' }, { id: generateId('status'), name: 'דחוף', color: '#e74c3c' }, { id: generateId('status'), name: 'ממתין', color: '#f39c12' }, { id: generateId('status'), name: 'בוצע', color: '#2ecc71' } ]; }
-      function initializeAppState(onlyStatuses = false) {
-          console.log("Initializing app state" + (onlyStatuses ? " (statuses only)" : " (full)"));
-          initializeDefaultStatuses();
-          if (onlyStatuses) return;
+
+      // --- MODIFIED: loadState Function for Firebase ---
+      function loadState() {
+        console.log("Attempting to load data from Firebase path:", dbRef.toString());
+        return new Promise((resolve) => {
+          dbRef.get().then((snapshot) => {
+            if (snapshot.exists()) {
+              const loadedData = snapshot.val();
+              if (loadedData && typeof loadedData === 'object') {
+                console.log("Data found in Firebase. Validating...");
+                // Perform deep validation and sanitization
+                appState = validateAndSanitizeLoadedState(loadedData);
+                console.log("Firebase data loaded and validated.");
+              } else {
+                console.warn("Invalid data structure in Firebase. Initializing defaults.");
+                initializeAppState(); // Initialize default structure
+                saveState(); // Save the default structure back to Firebase
+              }
+            } else {
+              console.log("No data found at Firebase path. Initializing defaults.");
+              initializeAppState();
+              saveState(); // Save the initial default state to Firebase
+            }
+            resolve(); // Resolve the promise once loading/initialization is done
+          }).catch((error) => {
+            console.error("Error loading state from Firebase:", error);
+            // Check for potential permission errors
+            if (error.code === 'PERMISSION_DENIED') {
+                 alert("שגיאה: אין הרשאה לקרוא נתונים מהענן. בדוק את חוקי האבטחה ב-Firebase.");
+            } else {
+                 alert("שגיאה בטעינת הנתונים מהענן. האפליקציה תשתמש בנתוני ברירת מחדל.");
+            }
+            initializeAppState(); // Fallback to default state
+            resolve(); // Still resolve so the app can start, even with defaults
+          });
+        });
+      }
+
+       // --- ADDED: Helper function for state validation (Crucial for loading external data) ---
+       function validateAndSanitizeLoadedState(loadedData) {
+           let validatedState = { boards: [], activeBoardId: null, customStatuses: [] };
+           validatedState.boards = Array.isArray(loadedData.boards) ? loadedData.boards : [];
+           validatedState.activeBoardId = loadedData.activeBoardId || null; // Keep loaded ID for now
+           validatedState.customStatuses = Array.isArray(loadedData.customStatuses) ? loadedData.customStatuses : [];
+
+           const validStatusIds = new Set();
+           // First pass: Validate/generate IDs for statuses
+           validatedState.customStatuses.forEach(status => {
+               status.id = status.id || generateId('status');
+               validStatusIds.add(status.id);
+               status.name = typeof status.name === 'string' ? status.name.trim() : 'סטטוס ללא שם';
+               if (!status.name) status.name = 'סטטוס ללא שם';
+               status.color = typeof status.color === 'string' && /^#[0-9A-F]{6}$/i.test(status.color) ? status.color : '#bdc3c7';
+           });
+
+           // Ensure there's at least one status, use defaults if absolutely none loaded
+           if (validatedState.customStatuses.length === 0) {
+               console.warn("No valid custom statuses found in loaded data. Re-initializing default statuses.");
+               initializeDefaultStatuses(); // Re-initialize the default ones
+               validatedState.customStatuses = appState.customStatuses; // Use the newly initialized defaults
+               validatedState.customStatuses.forEach(s => validStatusIds.add(s.id)); // Re-populate valid IDs
+           }
+           const defaultStatusId = validatedState.customStatuses[0].id; // The guaranteed first status ID
+
+           // Second pass: Validate boards, columns, and tasks
+           validatedState.boards.forEach((board, boardIndex) => {
+               board.id = board.id || generateId('board');
+               board.title = typeof board.title === 'string' ? board.title.trim() : `פרויקט ${boardIndex + 1}`;
+               if (!board.title) board.title = `פרויקט ${boardIndex + 1}`;
+               board.columns = Array.isArray(board.columns) ? board.columns : [];
+
+               board.columns.forEach((col, colIndex) => {
+                   col.id = col.id || generateId('col');
+                   col.title = typeof col.title === 'string' ? col.title.trim() : `עמודה ${colIndex + 1}`;
+                   if (!col.title) col.title = `עמודה ${colIndex + 1}`;
+                   col.tasks = Array.isArray(col.tasks) ? col.tasks : [];
+
+                   col.tasks.forEach((task, taskIndex) => {
+                       task.id = task.id || generateId('task');
+                       task.title = typeof task.title === 'string' ? task.title.trim() : `משימה ${taskIndex + 1}`;
+                       if (!task.title) task.title = `משימה ${taskIndex + 1}`;
+                       task.description = typeof task.description === 'string' ? task.description : ''; // Allow empty description
+
+                       // Validate status ID rigorously
+                       if (!task.status || !validStatusIds.has(task.status)) {
+                           console.warn(`Task "${task.title}" (${task.id}) has invalid/missing status "${task.status}". Resetting to default "${defaultStatusId}".`);
+                           task.status = defaultStatusId;
+                       }
+
+                       // Validate dueDate format (allow null)
+                       if (task.dueDate) {
+                           if (typeof task.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(task.dueDate)) {
+                               // Valid format, keep it
+                           } else {
+                               // Attempt to parse other formats, otherwise reset
+                               try {
+                                   const d = new Date(task.dueDate);
+                                   if (isNaN(d)) {
+                                       console.warn(`Task "${task.title}" (${task.id}) has invalid dueDate "${task.dueDate}". Resetting to null.`);
+                                       task.dueDate = null;
+                                   } else {
+                                       // Convert to the standard format
+                                       task.dueDate = d.toISOString().slice(0, 16);
+                                       console.log(`Converted dueDate for task "${task.title}" (${task.id}) to ${task.dueDate}`);
+                                   }
+                               } catch (e) {
+                                   console.warn(`Error parsing dueDate "${task.dueDate}" for task "${task.title}" (${task.id}). Resetting to null.`);
+                                   task.dueDate = null;
+                               }
+                           }
+                       } else {
+                           task.dueDate = null; // Ensure it's explicitly null if missing or falsy
+                       }
+                   });
+               });
+           });
+
+           // Final check: Ensure activeBoardId is valid among the loaded & validated boards
+           if (validatedState.boards.length > 0) {
+               const activeBoardExists = validatedState.boards.some(b => b.id === validatedState.activeBoardId);
+               if (!validatedState.activeBoardId || !activeBoardExists) {
+                   console.warn(`Loaded activeBoardId "${validatedState.activeBoardId}" is invalid. Setting to first board "${validatedState.boards[0].id}".`);
+                   validatedState.activeBoardId = validatedState.boards[0].id;
+               }
+           } else {
+               // No boards loaded or validated, activeBoardId must be null
+               validatedState.activeBoardId = null;
+           }
+
+           console.log("State validation complete.");
+           return validatedState;
+       }
+
+
+      // --- MODIFIED: initializeDefaultStatuses (used by validation and initial load) ---
+      function initializeDefaultStatuses() {
+           // This sets the default statuses in the global appState
+           appState.customStatuses = [
+               { id: generateId('status'), name: 'רגיל', color: '#3498db' },
+               { id: generateId('status'), name: 'דחוף', color: '#e74c3c' },
+               { id: generateId('status'), name: 'ממתין', color: '#f39c12' },
+               { id: generateId('status'), name: 'בוצע', color: '#2ecc71' }
+           ];
+           console.log("Default statuses initialized in appState.");
+       }
+
+
+      // --- MODIFIED: initializeAppState (used only if Firebase is empty or invalid) ---
+      function initializeAppState() {
+          console.log("Initializing default app state structure.");
+          initializeDefaultStatuses(); // Set default statuses
 
           const defaultBoardId = generateId('board');
-          const statusNormalId = appState.customStatuses.find(s => s.name === 'רגיל')?.id || (appState.customStatuses[0]?.id);
-          const statusUrgentId = appState.customStatuses.find(s => s.name === 'דחוף')?.id || statusNormalId;
-          const statusCompletedId = appState.customStatuses.find(s => s.name === 'בוצע')?.id || statusNormalId;
+          const statusNormalId = appState.customStatuses[0].id; // Use the first default status
+          const statusUrgentId = appState.customStatuses[1].id;
+          const statusCompletedId = appState.customStatuses[3].id;
 
-          const pastDate = new Date();
-          pastDate.setDate(pastDate.getDate() - 1);
+          const pastDate = new Date(); pastDate.setDate(pastDate.getDate() - 1); pastDate.setHours(14, 0);
           const pastDateString = pastDate.toISOString().slice(0, 16);
-
-          const futureDate = new Date();
-          futureDate.setDate(futureDate.getDate() + 3);
-          futureDate.setHours(11, 43);
+          const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 3); futureDate.setHours(11, 43);
           const futureDateString = futureDate.toISOString().slice(0, 16);
+          const nearFutureDate = new Date(); nearFutureDate.setMinutes(nearFutureDate.getMinutes() + 5);
+          const nearFutureDateString = nearFutureDate.toISOString().slice(0, 16);
 
-          appState.boards = [ { id: defaultBoardId, title: 'פרויקט לדוגמה', columns: [ { id: generateId('col'), title: 'לביצוע', tasks: [ { id: generateId('task'), title: 'משימה שעבר זמנה', description: 'משימה זו הייתה צריכה להסתיים אתמול.', status: statusNormalId, dueDate: pastDateString }, { id: generateId('task'), title: 'גרור אותי לעמודה אחרת', description: 'בדוק את פונקציונליות הגרירה.', status: statusNormalId, dueDate: null }, { id: generateId('task'), title: 'משימה דחופה עם תאריך עתידי', description: 'זוהי משימה שדורשת טיפול מהיר, אך יש לה זמן.', status: statusUrgentId, dueDate: futureDateString } ]}, { id: generateId('col'), title: 'בביצוע', tasks: [ { id: generateId('task'), title: 'משימה בתהליך', description: 'כרגע עובדים על משימה זו.', status: statusNormalId, dueDate: null } ]}, { id: generateId('col'), title: 'בבדיקה', tasks: []}, { id: generateId('col'), title: 'הושלם', tasks: [ { id: generateId('task'), title: 'משימה שהושלמה', description: 'משימה זו הסתיימה בהצלחה.', status: statusCompletedId, dueDate: null } ]} ] } ];
+          // Set the default board structure in the global appState
+          appState.boards = [
+              {
+                  id: defaultBoardId, title: 'פרויקט לדוגמה', columns: [
+                      { id: generateId('col'), title: 'לביצוע', tasks: [
+                          { id: generateId('task'), title: 'משימה שעבר זמנה', description: 'משימה זו הייתה צריכה להסתיים אתמול.', status: statusNormalId, dueDate: pastDateString },
+                          { id: generateId('task'), title: 'גרור אותי לעמודה אחרת', description: 'בדוק את פונקציונליות הגרירה.', status: statusNormalId, dueDate: null },
+                          { id: generateId('task'), title: 'משימה דחופה עם תאריך עתידי', description: 'זוהי משימה שדורשת טיפול מהיר, אך יש לה זמן.', status: statusUrgentId, dueDate: futureDateString },
+                          { id: generateId('task'), title: 'משימה קרובה', description: 'יש לסיים בקרוב.', status: statusNormalId, dueDate: nearFutureDateString }
+                      ]},
+                      { id: generateId('col'), title: 'בביצוע', tasks: [
+                          { id: generateId('task'), title: 'משימה בתהליך', description: 'כרגע עובדים על משימה זו.', status: statusNormalId, dueDate: null }
+                      ]},
+                      { id: generateId('col'), title: 'בבדיקה', tasks: []},
+                      { id: generateId('col'), title: 'הושלם', tasks: [
+                          { id: generateId('task'), title: 'משימה שהושלמה', description: 'משימה זו הסתיימה בהצלחה.', status: statusCompletedId, dueDate: null }
+                      ]}
+                  ]
+              }
+          ];
           appState.activeBoardId = defaultBoardId;
+          console.log("Default board structure initialized in appState.");
       }
+
+
+      // --- INITIALIZATION ---
       const sidebarContainer = document.getElementById('sidebarContainer');
       const tabsContainer = document.getElementById('tabsContainer');
       const boardsContainer = document.getElementById('boardsContainer');
@@ -362,258 +538,21 @@
       const taskDueDateTimeInput = document.getElementById('taskDueDateTime');
       const editTaskDueDateDateInput = document.getElementById('editTaskDueDateDate');
       const editTaskDueDateTimeInput = document.getElementById('editTaskDueDateTime');
-      function generateId(prefix = 'id') { return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; }
-      function getStatusInfo(statusId) { const status = appState.customStatuses.find(s => s.id === statusId); if (status) { return { text: status.name, color: status.color, class: 'custom-status' }; } return { text: 'לא ידוע', color: '#7f8c8d', class: 'unknown' }; }
-      function escapeHTML(str) { if (typeof str !== 'string') return String(str); return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
-      function isLightColor(hexColor) { if (!hexColor || typeof hexColor !== 'string') return true; const color = hexColor.charAt(0) === '#' ? hexColor.substring(1, 7) : hexColor; if (color.length !== 6) return true; try { const r = parseInt(color.substring(0, 2), 16); const g = parseInt(color.substring(2, 4), 16); const b = parseInt(color.substring(4, 6), 16); const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; return luminance > 0.5; } catch (e) { return true; } }
-      function formatDateTime(isoString) {
-        if (!isoString || typeof isoString !== 'string') return null;
-        try {
-            const date = new Date(isoString);
-            if (isNaN(date)) return null;
-            const optionsDate = { day: '2-digit', month: '2-digit', year: 'numeric' };
-            const optionsTime = { hour: '2-digit', minute: '2-digit', hour12: false };
-            return `${date.toLocaleDateString('he-IL', optionsDate)} ${date.toLocaleTimeString('he-IL', optionsTime)}`;
-        } catch (e) {
-            console.error("Error formatting date:", isoString, e);
-            return null;
-        }
-      }
-      function populateStatusSelects() { const selects = [taskPrioritySelect, editTaskPrioritySelect]; selects.forEach(select => { if (!select) return; const currentVal = select.value; select.innerHTML = ''; if (appState.customStatuses.length === 0) { select.innerHTML = '<option value="" disabled>אין סטטוסים</option>'; select.disabled = true; return; } select.disabled = false; appState.customStatuses.forEach(status => { const option = document.createElement('option'); option.value = status.id; option.textContent = status.name; select.appendChild(option); }); if (appState.customStatuses.some(s => s.id === currentVal)) { select.value = currentVal; } else if (appState.customStatuses.length > 0) { select.value = appState.customStatuses[0].id; } }); }
-      function renderStatusManager() {
-          if (!statusList) return;
-          statusList.innerHTML = '';
-          const canDelete = appState.customStatuses.length > 1;
-          if (appState.customStatuses.length === 0) {
-              statusList.innerHTML = '<li>אין סטטוסים מוגדרים.</li>';
-          } else {
-             appState.customStatuses.forEach(status => {
-                 const li = document.createElement('li');
-                 li.dataset.statusId = status.id;
-                 li.innerHTML = `
-                     <span class="status-color-indicator" style="background-color: ${escapeHTML(status.color)};"></span>
-                     <span class="status-name" title="${escapeHTML(status.name)}">${escapeHTML(status.name)}</span>
-                     <button class="delete-status-btn" data-status-id="${escapeHTML(status.id)}" title="מחק סטטוס" ${!canDelete ? 'disabled' : ''}>&times;</button>
-                 `;
-                 statusList.appendChild(li);
-             });
-          }
-          populateStatusSelects();
-      }
-      function renderTask(task) {
-          const taskCard = document.createElement('div');
-          taskCard.className = 'task-card';
-          taskCard.draggable = true;
-          taskCard.dataset.taskId = task.id;
-          const statusInfo = getStatusInfo(task.status);
-          const textColor = isLightColor(statusInfo.color) ? '#000' : '#fff';
-          let statusBadgeHTML = `<div class="status-badge ${escapeHTML(statusInfo.class)}" style="background-color: ${escapeHTML(statusInfo.color)}; color: ${textColor};" title="${escapeHTML(statusInfo.text)}">${escapeHTML(statusInfo.text)}</div>`;
-          const titleDiv = document.createElement('div');
-          titleDiv.className = 'task-title';
-          titleDiv.textContent = task.title;
-          const descriptionDiv = document.createElement('div');
-          descriptionDiv.className = 'task-description';
-          descriptionDiv.textContent = task.description;
-          let dueDateHTML = '';
-          let isDue = false;
-          if (task.dueDate) {
-              try {
-                  const dueDate = new Date(task.dueDate);
-                  const now = new Date();
-                  if (!isNaN(dueDate)) {
-                      const formattedDate = formatDateTime(task.dueDate);
-                      isDue = dueDate < now;
-                      dueDateHTML = `<div class="task-due-date"><strong>תאריך יעד:</strong> ${escapeHTML(formattedDate)}</div>`;
-                  } else {
-                      console.warn(`Task ${task.id} has invalid dueDate in state: ${task.dueDate}`);
-                  }
-              } catch (e) {
-                  console.error(`Error parsing dueDate for task ${task.id}:`, e);
-              }
-          }
-          if (isDue) { taskCard.classList.add('due-alarm'); }
-          taskCard.innerHTML = `
-              <div class="task-header"> ${titleDiv.outerHTML} <div class="task-status">${statusBadgeHTML}</div> </div>
-              ${descriptionDiv.outerHTML} ${dueDateHTML}
-              <div class="task-actions"><button class="edit-task-btn" title="עריכת משימה">✏️</button><button class="delete-task-btn" title="מחיקת משימה">🗑️</button></div>`;
-          taskCard.addEventListener('dragstart', handleTaskDragStart);
-          taskCard.addEventListener('dragend', handleTaskDragEnd);
-          return taskCard;
-      }
-      function renderColumn(column, boardId) { const columnDiv = document.createElement('div'); columnDiv.className = 'column'; columnDiv.id = column.id; columnDiv.dataset.columnId = column.id; columnDiv.dataset.boardId = boardId; columnDiv.draggable = true; const header = document.createElement('div'); header.className = 'column-header'; const title = document.createElement('div'); title.className = 'column-title'; title.textContent = column.title; title.title = column.title; const actions = document.createElement('div'); actions.className = 'column-actions'; actions.innerHTML = `<button class="edit-column-btn" title="שינוי שם עמודה">✏️</button><button class="delete-column-btn" title="מחיקת עמודה">🗑️</button>`; header.appendChild(title); header.appendChild(actions); const tasksContainer = document.createElement('div'); tasksContainer.className = 'tasks-container'; columnDiv.appendChild(header); columnDiv.appendChild(tasksContainer); column.tasks.forEach(task => { tasksContainer.appendChild(renderTask(task)); }); tasksContainer.addEventListener('dragover', handleTaskDragOver); tasksContainer.addEventListener('dragleave', handleTaskDragLeave); tasksContainer.addEventListener('drop', handleTaskDrop); columnDiv.addEventListener('dragstart', handleColumnDragStart); columnDiv.addEventListener('dragend', handleColumnDragEnd); return columnDiv; }
-      function renderBoard(board) { const boardDiv = document.createElement('div'); boardDiv.className = 'board'; boardDiv.id = board.id; if (board.id === appState.activeBoardId) { boardDiv.classList.add('active'); boardDiv.addEventListener('dragover', handleColumnDragOver); boardDiv.addEventListener('dragleave', handleColumnDragLeave); boardDiv.addEventListener('drop', handleColumnDrop); } board.columns.forEach(column => { boardDiv.appendChild(renderColumn(column, board.id)); }); const addColumnBtn = document.createElement('div'); addColumnBtn.className = 'add-column-btn'; addColumnBtn.textContent = '+ הוספת עמודה'; addColumnBtn.dataset.boardId = board.id; addColumnBtn.title = 'הוספת עמודה חדשה לפרויקט זה'; addColumnBtn.addEventListener('click', () => openAddColumnModal(board.id)); boardDiv.appendChild(addColumnBtn); return boardDiv; }
-      function renderTabs() { const addBtnRef = tabsContainer.querySelector('.new-tab-btn') || newTabBtn; tabsContainer.innerHTML = ''; tabsContainer.appendChild(addBtnRef); if (appState.boards.length === 0) { const noBoardsMsg = document.createElement('div'); noBoardsMsg.textContent = "אין פרויקטים. לחץ על '+' להוספה."; noBoardsMsg.style.cssText = 'padding: 10px 15px; color: var(--light); align-self: center;'; tabsContainer.insertBefore(noBoardsMsg, addBtnRef); } appState.boards.forEach(board => { const tab = document.createElement('div'); tab.className = 'tab'; tab.dataset.boardId = board.id; const titleSpan = document.createElement('span'); titleSpan.textContent = board.title; titleSpan.title = board.title; tab.appendChild(titleSpan); if (board.id === appState.activeBoardId) tab.classList.add('active'); tab.addEventListener('click', (e) => { if (e.target === tab || e.target === titleSpan) switchTab(board.id); }); const editBtn = document.createElement('button'); editBtn.innerHTML = '✏️'; editBtn.className = 'edit-tab-btn'; editBtn.title = 'שנה שם פרויקט'; editBtn.setAttribute('aria-label', `ערוך ${escapeHTML(board.title)}`); editBtn.onclick = (e) => { e.stopPropagation(); editBoardTitle(board.id); }; tab.appendChild(editBtn); const deleteBtn = document.createElement('button'); deleteBtn.innerHTML = '&times;'; deleteBtn.className = 'delete-tab-btn'; deleteBtn.title = 'מחק פרויקט'; deleteBtn.setAttribute('aria-label', `מחק ${escapeHTML(board.title)}`); deleteBtn.onclick = (e) => { e.stopPropagation(); deleteBoard(board.id); }; tab.appendChild(deleteBtn); tabsContainer.insertBefore(tab, addBtnRef); }); }
-      function renderApp() { console.time("renderApp"); renderStatusManager(); renderTabs(); boardsContainer.querySelectorAll('.board').forEach(b => { b.removeEventListener('dragover', handleColumnDragOver); b.removeEventListener('dragleave', handleColumnDragLeave); b.removeEventListener('drop', handleColumnDrop); }); boardsContainer.innerHTML = ''; appState.boards.forEach(board => { boardsContainer.appendChild(renderBoard(board)); }); const activeBoardEl = appState.activeBoardId ? document.getElementById(appState.activeBoardId) : null; if (activeBoardEl) { document.querySelectorAll('.board.active').forEach(b => b.classList.remove('active')); activeBoardEl.classList.add('active'); activeBoardEl.removeEventListener('dragover', handleColumnDragOver); activeBoardEl.removeEventListener('dragleave', handleColumnDragLeave); activeBoardEl.removeEventListener('drop', handleColumnDrop); activeBoardEl.addEventListener('dragover', handleColumnDragOver); activeBoardEl.addEventListener('dragleave', handleColumnDragLeave); activeBoardEl.addEventListener('drop', handleColumnDrop); } else if (appState.boards.length > 0) { console.warn(`Active board ID ${appState.activeBoardId} invalid/missing. Activating first.`); appState.activeBoardId = appState.boards[0].id; saveState(); const firstBoardEl = document.getElementById(appState.activeBoardId); if(firstBoardEl) { firstBoardEl.classList.add('active'); firstBoardEl.addEventListener('dragover', handleColumnDragOver); firstBoardEl.addEventListener('dragleave', handleColumnDragLeave); firstBoardEl.addEventListener('drop', handleColumnDrop); document.querySelectorAll('.tab.active').forEach(t => t.classList.remove('active')); const activeTab = tabsContainer.querySelector(`.tab[data-board-id="${appState.activeBoardId}"]`); if(activeTab) activeTab.classList.add('active'); } } else { boardsContainer.innerHTML = '<div style="padding: 30px; color: #777; text-align: center; width: 100%;">הוסף פרויקט באמצעות כפתור ה-\'+\' למעלה כדי להתחיל.</div>'; } setupDelegatedListeners(); console.timeEnd("renderApp"); }
-      let draggedTaskElement = null; let sourceTaskColumnId = null; let sourceTaskBoardId = null;
-      function handleTaskDragStart(e) { if (!e.target.classList.contains('task-card')) { e.preventDefault(); return; } e.stopPropagation(); draggedTaskElement = e.target; const sourceColumn = draggedTaskElement.closest('.column'); const sourceBoard = draggedTaskElement.closest('.board'); if (!sourceColumn || !sourceBoard) { e.preventDefault(); return; } sourceTaskColumnId = sourceColumn.dataset.columnId; sourceTaskBoardId = sourceBoard.id; e.dataTransfer.setData('text/plain', draggedTaskElement.dataset.taskId); e.dataTransfer.effectAllowed = 'move'; setTimeout(() => { if(draggedTaskElement) draggedTaskElement.classList.add('dragging'); }, 0); }
-      function handleTaskDragEnd(e) { if (draggedTaskElement) { draggedTaskElement.classList.remove('dragging'); } draggedTaskElement = null; sourceTaskColumnId = null; sourceTaskBoardId = null; document.querySelectorAll('.tasks-container.drag-over').forEach(el => el.classList.remove('drag-over')); }
-      function handleTaskDragOver(e) { if (!draggedTaskElement) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; const targetContainer = e.target.closest('.tasks-container'); if (targetContainer) { if (!targetContainer.classList.contains('drag-over')) { document.querySelectorAll('.tasks-container.drag-over').forEach(el => el.classList.remove('drag-over')); targetContainer.classList.add('drag-over'); } } else { document.querySelectorAll('.tasks-container.drag-over').forEach(el => el.classList.remove('drag-over')); } }
-      function handleTaskDragLeave(e) { if (!draggedTaskElement) return; const tasksContainer = e.target.closest('.tasks-container'); if (tasksContainer && (!e.relatedTarget || !tasksContainer.contains(e.relatedTarget))) { tasksContainer.classList.remove('drag-over'); } }
-      function handleTaskDrop(e) { if (!draggedTaskElement) { return; } e.preventDefault(); e.stopPropagation(); const targetTasksContainer = e.target.closest('.tasks-container'); if (!targetTasksContainer) { handleTaskDragEnd(e); return; } targetTasksContainer.classList.remove('drag-over'); const targetColumnElement = targetTasksContainer.closest('.column'); if (!targetColumnElement) { console.error("Task Drop error: No parent column."); handleTaskDragEnd(e); return; } const targetColumnId = targetColumnElement.dataset.columnId; const targetBoardId = targetColumnElement.dataset.boardId; const taskId = e.dataTransfer.getData('text/plain'); const board = appState.boards.find(b => b.id === targetBoardId); if (!board) { console.error("Task Drop error: Board state not found."); handleTaskDragEnd(e); return; } const sourceColumn = board.columns.find(c => c.id === sourceTaskColumnId); const targetColumn = board.columns.find(c => c.id === targetColumnId); if (!sourceColumn || !targetColumn) { console.error("Task Drop error: Column state not found."); handleTaskDragEnd(e); return; } const taskIndex = sourceColumn.tasks.findIndex(t => t.id === taskId); if (taskIndex === -1) { console.error(`Task Drop error: Task ${taskId} not in source state.`); handleTaskDragEnd(e); return; } const [taskToMove] = sourceColumn.tasks.splice(taskIndex, 1); const dropY = e.clientY; const tasksInTarget = Array.from(targetTasksContainer.querySelectorAll('.task-card:not(.dragging)')); let insertBeforeTaskElement = null; for (const taskElement of tasksInTarget) { const rect = taskElement.getBoundingClientRect(); if (dropY < rect.top + rect.height / 2) { insertBeforeTaskElement = taskElement; break; } } let targetStateIndex; if (insertBeforeTaskElement) { const insertBeforeTaskId = insertBeforeTaskElement.dataset.taskId; targetStateIndex = targetColumn.tasks.findIndex(t => t.id === insertBeforeTaskId); if (targetStateIndex === -1) targetStateIndex = targetColumn.tasks.length; } else { targetStateIndex = targetColumn.tasks.length; } targetColumn.tasks.splice(targetStateIndex, 0, taskToMove); if (insertBeforeTaskElement) { targetTasksContainer.insertBefore(draggedTaskElement, insertBeforeTaskElement); } else { targetTasksContainer.appendChild(draggedTaskElement); } saveState(); handleTaskDragEnd(e); }
-      let draggedColumnElement = null; let sourceColumnBoardId = null; let placeholder = null;
-      function createPlaceholder() { if (!placeholder) { placeholder = document.createElement('div'); placeholder.className = 'column-drag-over-placeholder'; } return placeholder; }
-      function handleColumnDragStart(e) { if (!e.target.classList.contains('column') || e.target.closest('.tasks-container') || e.target.closest('.column-header')) { if (!draggedTaskElement) { e.preventDefault(); } return; } if (draggedTaskElement) { e.preventDefault(); return; } draggedColumnElement = e.target; sourceColumnBoardId = draggedColumnElement.closest('.board').id; if (sourceColumnBoardId !== appState.activeBoardId) { e.preventDefault(); draggedColumnElement = null; return; } e.dataTransfer.setData('text/plain', draggedColumnElement.dataset.columnId); e.dataTransfer.effectAllowed = 'move'; setTimeout(() => { if(draggedColumnElement) draggedColumnElement.classList.add('dragging'); }, 0); placeholder = createPlaceholder(); }
-      function handleColumnDragEnd(e) { if (draggedColumnElement) { draggedColumnElement.classList.remove('dragging'); } placeholder?.remove(); placeholder = null; draggedColumnElement = null; sourceColumnBoardId = null; }
-      function handleColumnDragOver(e) { if (!draggedColumnElement || draggedTaskElement) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; const boardElement = e.target.closest('.board.active'); if (!boardElement || !placeholder) return; const afterElement = getColumnDragAfterElement(boardElement, e.clientX); const addBtn = boardElement.querySelector('.add-column-btn'); if (afterElement == null) { if (addBtn) boardElement.insertBefore(placeholder, addBtn); else boardElement.appendChild(placeholder); } else { boardElement.insertBefore(placeholder, afterElement); } }
-      function getColumnDragAfterElement(boardElement, x) { const draggableColumns = [...boardElement.querySelectorAll('.column:not(.dragging):not(.add-column-btn)')]; return draggableColumns.reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = x - (box.left + box.width / 2); if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } else { return closest; } }, { offset: Number.NEGATIVE_INFINITY }).element; }
-      function handleColumnDragLeave(e) { if (!draggedColumnElement || draggedTaskElement) return; const boardElement = e.target.closest('.board.active'); if (placeholder && boardElement && (!e.relatedTarget || !boardElement.contains(e.relatedTarget))) { placeholder.remove(); } }
-      function handleColumnDrop(e) { if (!draggedColumnElement || draggedTaskElement) { if(placeholder) placeholder.remove(); return; } e.preventDefault(); const boardElement = e.target.closest('.board.active'); if (!boardElement || !placeholder || !placeholder.parentNode) { console.error("Column Drop failed: Invalid target or placeholder."); handleColumnDragEnd(e); return; } const targetBoardId = boardElement.id; const columnId = e.dataTransfer.getData('text/plain'); const board = appState.boards.find(b => b.id === targetBoardId); if (!board) { console.error("Column Drop error: Target board state missing."); handleColumnDragEnd(e); return; } const sourceColumnIndex = board.columns.findIndex(c => c.id === columnId); if (sourceColumnIndex === -1) { console.error(`Column Drop error: Source col ${columnId} not found.`); handleColumnDragEnd(e); return; } const [columnToMove] = board.columns.splice(sourceColumnIndex, 1); let elementAfterPlaceholder = placeholder.nextElementSibling; while(elementAfterPlaceholder && !elementAfterPlaceholder.classList.contains('column')){ elementAfterPlaceholder = elementAfterPlaceholder.nextElementSibling; } let targetStateIndex; if (elementAfterPlaceholder) { const elementAfterId = elementAfterPlaceholder.dataset.columnId; targetStateIndex = board.columns.findIndex(c => c.id === elementAfterId); if (targetStateIndex === -1) targetStateIndex = board.columns.length; } else { targetStateIndex = board.columns.length; } board.columns.splice(targetStateIndex, 0, columnToMove); placeholder.parentNode.insertBefore(draggedColumnElement, placeholder); saveState(); handleColumnDragEnd(e); }
-      function switchTab(boardId) { if (appState.activeBoardId === boardId) return; const oldActiveBoard = appState.activeBoardId ? document.getElementById(appState.activeBoardId) : null; if(oldActiveBoard) { oldActiveBoard.removeEventListener('dragover', handleColumnDragOver); oldActiveBoard.removeEventListener('dragleave', handleColumnDragLeave); oldActiveBoard.removeEventListener('drop', handleColumnDrop); oldActiveBoard.classList.remove('active'); } appState.activeBoardId = boardId; tabsContainer.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.boardId === boardId)); const newActiveBoard = document.getElementById(boardId); if(newActiveBoard) { boardsContainer.querySelectorAll('.board.active').forEach(b => b.classList.remove('active')); newActiveBoard.classList.add('active'); newActiveBoard.removeEventListener('dragover', handleColumnDragOver); newActiveBoard.removeEventListener('dragleave', handleColumnDragLeave); newActiveBoard.removeEventListener('drop', handleColumnDrop); newActiveBoard.addEventListener('dragover', handleColumnDragOver); newActiveBoard.addEventListener('dragleave', handleColumnDragLeave); newActiveBoard.addEventListener('drop', handleColumnDrop); } else { console.error(`SwitchTab Error: Board element ${boardId} not found.`); } const activeTabElement = tabsContainer.querySelector('.tab.active'); if (activeTabElement) activeTabElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); saveState(); }
-      function openAddColumnModal(boardId) { const board = appState.boards.find(b => b.id === boardId); if (!board) return; document.getElementById('addColumnBoardId').value = boardId; addColumnModal.classList.add('active'); document.getElementById('columnTitle').focus(); }
-      function openAddBoardModal() { addBoardModal.classList.add('active'); document.getElementById('boardTitle').focus(); }
-      function openEditTaskModal(taskId, columnId, boardId) {
-          const board = appState.boards.find(b => b.id === boardId); if (!board) return;
-          const column = board.columns.find(c => c.id === columnId); if (!column) return;
-          const task = column.tasks.find(t => t.id === taskId); if (!task) return;
-          console.log(`Opening edit modal for task: ${taskId}`);
-          document.getElementById('editTaskId').value = task.id;
-          document.getElementById('editTaskColumnId').value = columnId;
-          document.getElementById('editTaskBoardId').value = boardId;
-          document.getElementById('editTaskTitle').value = task.title;
-          document.getElementById('editTaskDescription').value = task.description || '';
-          populateStatusSelects();
-          editTaskPrioritySelect.value = task.status || (appState.customStatuses[0]?.id || '');
-          if (task.dueDate && typeof task.dueDate === 'string' && task.dueDate.includes('T')) {
-              const [datePart, timePart] = task.dueDate.split('T');
-              editTaskDueDateDateInput.value = datePart || '';
-              editTaskDueDateTimeInput.value = timePart || '';
-          } else {
-              editTaskDueDateDateInput.value = '';
-              editTaskDueDateTimeInput.value = '';
-          }
-          editTaskModal.classList.add('active');
-          document.getElementById('editTaskTitle').focus();
-      }
-      function closeModal(modalId) { const modal = document.getElementById(modalId); if (modal) { modal.classList.remove('active'); const form = modal.querySelector('form'); if(form) form.reset(); const colorInput = modal.querySelector('input[type="color"]'); if (colorInput) colorInput.value = '#3498db'; } }
-      statusForm.addEventListener('submit', (e) => { e.preventDefault(); const nameInput = document.getElementById('statusName'); const colorInput = document.getElementById('statusColor'); const statusName = nameInput.value.trim(); const statusColor = colorInput.value; if (!statusName) { alert("שם הסטטוס חובה."); nameInput.focus(); return; } if (appState.customStatuses.some(s => s.name.toLowerCase() === statusName.toLowerCase())) { alert("סטטוס עם שם זה קיים."); nameInput.focus(); return; } const newStatus = { id: generateId('status'), name: statusName, color: statusColor }; appState.customStatuses.push(newStatus); saveState(); renderStatusManager(); statusForm.reset(); colorInput.value = '#3498db'; nameInput.focus(); });
-      taskForm.addEventListener('submit', (e) => {
-          e.preventDefault();
-          if (!appState.activeBoardId) { alert("אנא בחר פרויקט."); return; }
-          const activeBoard = appState.boards.find(b => b.id === appState.activeBoardId);
-          if (!activeBoard) { alert("פרויקט פעיל לא נמצא."); return; }
-          if (activeBoard.columns.length === 0) { if (confirm("אין עמודות. להוסיף עמודה?")) { openAddColumnModal(appState.activeBoardId); } else { alert("לא ניתן להוסיף משימה."); } return; }
-          const taskTitle = document.getElementById('taskTitle').value.trim();
-          const taskDescription = document.getElementById('taskDescription').value.trim();
-          const taskStatusId = taskPrioritySelect.value;
-          const taskDueDate = taskDueDateDateInput.value;
-          const taskDueTime = taskDueDateTimeInput.value;
-          if (!taskTitle) { alert("כותרת חובה."); document.getElementById('taskTitle').focus(); return; }
-          if (!taskStatusId) { alert("סטטוס חובה."); taskPrioritySelect.focus(); return; }
-          let combinedDueDate = null;
-          if (taskDueDate && taskDueTime) { combinedDueDate = `${taskDueDate}T${taskDueTime}`; }
-          else if (taskDueDate) { alert("יש לספק גם שעת יעד אם נבחר תאריך יעד."); taskDueDateTimeInput.focus(); return; }
-          const newTask = { id: generateId('task'), title: taskTitle, description: taskDescription, status: taskStatusId, dueDate: combinedDueDate };
-          activeBoard.columns[0].tasks.push(newTask);
-          saveState();
-          const firstColTasks = document.querySelector(`#${appState.activeBoardId} .column:first-child .tasks-container`);
-          if (firstColTasks) { firstColTasks.appendChild(renderTask(newTask)); }
-          else { console.error("First column tasks container missing. Re-rendering."); renderApp(); }
-          taskForm.reset(); populateStatusSelects(); document.getElementById('taskTitle').focus();
-      });
-      addColumnForm.addEventListener('submit', (e) => { e.preventDefault(); const columnTitle = document.getElementById('columnTitle').value.trim(); const boardId = document.getElementById('addColumnBoardId').value; if (!columnTitle) { alert("שם עמודה חובה."); document.getElementById('columnTitle').focus(); return; } if (!boardId) { alert("Error: No board ID."); return; } const board = appState.boards.find(b => b.id === boardId); if (!board) { alert(`Error: Board ${boardId} not found.`); return; } const newColumn = { id: generateId('col'), title: columnTitle, tasks: [] }; board.columns.push(newColumn); saveState(); const boardElement = document.getElementById(boardId); if (boardElement?.classList.contains('active')) { const addColumnBtnElement = boardElement.querySelector('.add-column-btn'); const renderedColumn = renderColumn(newColumn, boardId); if (addColumnBtnElement) { boardElement.insertBefore(renderedColumn, addColumnBtnElement); } else { boardElement.appendChild(renderedColumn); } } closeModal('addColumnModal'); });
-      addBoardForm.addEventListener('submit', (e) => { e.preventDefault(); const boardTitle = document.getElementById('boardTitle').value.trim(); if (!boardTitle) { alert("שם פרויקט חובה."); document.getElementById('boardTitle').focus(); return; } const newBoardId = generateId('board'); const newBoard = { id: newBoardId, title: boardTitle, columns: [ { id: generateId('col'), title: 'רעיונות', tasks: [] }, { id: generateId('col'), title: 'לביצוע', tasks: [] }, { id: generateId('col'), title: 'הושלם', tasks: [] } ]}; appState.boards.push(newBoard); appState.activeBoardId = newBoardId; saveState(); renderApp(); closeModal('addBoardModal'); const newTab = tabsContainer.querySelector(`.tab[data-board-id="${newBoardId}"]`); newTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); });
-      editTaskForm.addEventListener('submit', (e) => {
-          e.preventDefault();
-          const taskId = document.getElementById('editTaskId').value;
-          const colId = document.getElementById('editTaskColumnId').value;
-          const boardId = document.getElementById('editTaskBoardId').value;
-          const title = document.getElementById('editTaskTitle').value.trim();
-          const desc = document.getElementById('editTaskDescription').value.trim();
-          const statusId = editTaskPrioritySelect.value;
-          const dueDate = editTaskDueDateDateInput.value;
-          const dueTime = editTaskDueDateTimeInput.value;
-          if (!taskId || !colId || !boardId) { alert("שגיאה: חסרים פרטים."); return; }
-          if (!title) { alert("כותרת חובה."); return; }
-          if (!statusId) { alert("סטטוס חובה."); return; }
-          let combinedDueDate = null;
-           if (dueDate && dueTime) { combinedDueDate = `${dueDate}T${dueTime}`; }
-           else if (dueDate) { alert("יש לספק גם שעת יעד אם נבחר תאריך יעד."); editTaskDueDateTimeInput.focus(); return; }
-          const board = appState.boards.find(b => b.id === boardId); if (!board) { alert("שגיאה: פרויקט לא קיים."); return; }
-          const col = board.columns.find(c => c.id === colId); if (!col) { alert("שגיאה: עמודה לא קיימת."); return; }
-          const taskIdx = col.tasks.findIndex(t => t.id === taskId); if (taskIdx === -1) { alert("שגיאה: משימה לא קיימת."); return; }
-          col.tasks[taskIdx] = { ...col.tasks[taskIdx], title, description: desc, status: statusId, dueDate: combinedDueDate };
-          saveState();
-          const taskEl = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
-          if (taskEl) {
-              taskEl.querySelector('.task-title').textContent = title;
-              taskEl.querySelector('.task-description').textContent = desc;
-              const statusInfo = getStatusInfo(statusId);
-              const textColor = isLightColor(statusInfo.color) ? '#000' : '#fff';
-              const statusHTML = `<div class="status-badge ${escapeHTML(statusInfo.class)}" style="background-color:${escapeHTML(statusInfo.color)};color:${textColor};" title="${escapeHTML(statusInfo.text)}">${escapeHTML(statusInfo.text)}</div>`;
-              taskEl.querySelector('.task-status').innerHTML = statusHTML;
-              let dueDateHTML = ''; let isDue = false; const dueDateDisplay = taskEl.querySelector('.task-due-date');
-              if (combinedDueDate) {
-                  try {
-                      const dueDateObj = new Date(combinedDueDate); const now = new Date();
-                      if(!isNaN(dueDateObj)) {
-                          const formattedDate = formatDateTime(combinedDueDate); isDue = dueDateObj < now;
-                          dueDateHTML = `<strong>תאריך יעד:</strong> ${escapeHTML(formattedDate)}`;
-                          if(dueDateDisplay) { dueDateDisplay.innerHTML = dueDateHTML; }
-                          else { const newDueDateDiv = document.createElement('div'); newDueDateDiv.className = 'task-due-date'; newDueDateDiv.innerHTML = dueDateHTML; const actionsDiv = taskEl.querySelector('.task-actions'); if(actionsDiv) taskEl.insertBefore(newDueDateDiv, actionsDiv); else taskEl.appendChild(newDueDateDiv); }
-                      }
-                  } catch(e) { /* Handle error */ }
-              } else { dueDateDisplay?.remove(); }
-              taskEl.classList.toggle('due-alarm', isDue);
-          } else { console.warn(`Task element ${taskId} not found for direct update. Re-rendering.`); renderApp(); }
-          closeModal('editTaskModal');
-      });
-      function deleteTask(taskId, columnId, boardId) { const board=appState.boards.find(b=>b.id===boardId); const col=board?.columns.find(c=>c.id===columnId); const task=col?.tasks.find(t=>t.id===taskId); const taskTitle=task?task.title:'המשימה'; if (!confirm(`למחוק ${taskTitle}?`)) return; if(!board||!col||!task){alert("Error finding task to delete."); renderApp(); return;} const taskIndex=col.tasks.findIndex(t=>t.id===taskId); if(taskIndex>-1){ col.tasks.splice(taskIndex, 1); saveState(); const taskEl=document.querySelector(`.task-card[data-task-id="${taskId}"]`); if(taskEl){ taskEl.style.transition='opacity .3s, transform .3s, height .3s, margin .3s, padding .3s, border .3s'; taskEl.style.opacity='0'; taskEl.style.transform='scale(0.9)'; taskEl.style.height='0'; taskEl.style.margin='0'; taskEl.style.padding='0'; taskEl.style.border='none'; setTimeout(()=>taskEl.remove(), 300); } else { renderApp(); } } }
-      function deleteColumn(columnId, boardId) { const board=appState.boards.find(b=>b.id===boardId); if(!board) return; const colIndex=board.columns.findIndex(c=>c.id===columnId); if(colIndex===-1) return; const col=board.columns[colIndex]; if(!confirm(`למחוק עמודה "${col.title}" (${col.tasks.length} משימות)?`)) return; board.columns.splice(colIndex, 1); saveState(); const colEl=document.getElementById(columnId); if(colEl){ colEl.style.transition='opacity .3s, transform .3s, width .3s, margin .3s, padding .3s, border .3s, min-width .3s'; colEl.style.opacity='0'; colEl.style.transform='scaleY(0.9)'; colEl.style.minWidth='0'; colEl.style.width='0'; colEl.style.margin='0'; colEl.style.padding='0'; colEl.style.border='none'; setTimeout(()=>colEl.remove(), 300); } else { renderApp(); } }
-      function deleteBoard(boardId) { const boardIndex = appState.boards.findIndex(b => b.id === boardId); if (boardIndex === -1) return; const board = appState.boards[boardIndex]; const taskCount = board.columns.reduce((sum, col) => sum + col.tasks.length, 0); if (!confirm(`למחוק פרויקט "${board.title}" (${taskCount} משימות)?`)) return; appState.boards.splice(boardIndex, 1); if (appState.activeBoardId === boardId) { appState.activeBoardId = appState.boards.length > 0 ? appState.boards[0].id : null; } saveState(); renderApp(); }
-      function editColumnTitle(columnId, boardId) { const board = appState.boards.find(b => b.id === boardId); if (!board) return; const column = board.columns.find(c => c.id === columnId); if (!column) return; const currentTitle = column.title; const newTitle = prompt(`שם חדש לעמודה "${currentTitle}":`, currentTitle); if (newTitle === null) return; const finalTitle = newTitle.trim(); if (finalTitle && finalTitle !== currentTitle) { column.title = finalTitle; saveState(); const colEl = document.getElementById(columnId); if (colEl) { const titleEl = colEl.querySelector('.column-title'); if (titleEl) { titleEl.textContent = finalTitle; titleEl.title = finalTitle; } } else { renderApp(); } } else if (!finalTitle) { alert("שם עמודה ריק לא תקין."); } }
-      function editBoardTitle(boardId) { const boardIndex = appState.boards.findIndex(b => b.id === boardId); if (boardIndex === -1) return; const currentTitle = appState.boards[boardIndex].title; const newTitle = prompt(`שם חדש לפרויקט "${currentTitle}":`, currentTitle); if (newTitle === null) return; const finalTitle = newTitle.trim(); if (finalTitle && finalTitle !== currentTitle) { appState.boards[boardIndex].title = finalTitle; saveState(); const tabEl = tabsContainer.querySelector(`.tab[data-board-id="${boardId}"]`); if (tabEl) { const titleSpan = tabEl.querySelector('span'); if (titleSpan) { titleSpan.textContent = finalTitle; titleSpan.title = finalTitle; } const editBtn = tabEl.querySelector('.edit-tab-btn'); if(editBtn) editBtn.setAttribute('aria-label', `ערוך ${escapeHTML(finalTitle)}`); const delBtn = tabEl.querySelector('.delete-tab-btn'); if(delBtn) delBtn.setAttribute('aria-label', `מחק ${escapeHTML(finalTitle)}`); } else { renderTabs(); } } else if (!finalTitle) { alert("שם פרויקט ריק לא תקין."); } }
-      function deleteStatus(statusIdToDelete) { if (appState.customStatuses.length <= 1) { alert("לא ניתן למחוק את הסטטוס האחרון."); return; } const statusIndex = appState.customStatuses.findIndex(s => s.id === statusIdToDelete); if (statusIndex === -1) { console.error(`Status with ID ${statusIdToDelete} not found.`); return; } const statusToDelete = appState.customStatuses[statusIndex]; if (!confirm(`האם אתה בטוח שברצונך למחוק את הסטטוס "${statusToDelete.name}"? משימות המשתמשות בסטטוס זה יועברו לסטטוס ברירת המחדל.`)) { return; } let replacementStatusId = null; if (appState.customStatuses.length > 1) { replacementStatusId = appState.customStatuses[0].id === statusIdToDelete ? appState.customStatuses[1].id : appState.customStatuses[0].id; } if (replacementStatusId === null) { alert("שגיאה: לא נמצא סטטוס חלופי."); return; } let tasksUpdatedCount = 0; appState.boards.forEach(board => { board.columns.forEach(column => { column.tasks.forEach(task => { if (task.status === statusIdToDelete) { task.status = replacementStatusId; tasksUpdatedCount++; } }); }); }); if (tasksUpdatedCount > 0) { console.log(`Updated ${tasksUpdatedCount} tasks to status ${replacementStatusId}.`); } appState.customStatuses.splice(statusIndex, 1); saveState(); renderApp(); }
-      let dueDateCheckInterval = null;
-      function checkDueDates() {
-          const now = new Date();
-          let changed = false;
-          appState.boards.forEach(board => {
-              board.columns.forEach(column => {
-                  column.tasks.forEach(task => {
-                      const taskElement = document.querySelector(`.task-card[data-task-id="${task.id}"]`);
-                      if (!taskElement) return;
-                      let shouldHaveAlarm = false;
-                      if (task.dueDate) {
-                          try { const dueDate = new Date(task.dueDate); if (!isNaN(dueDate) && dueDate < now) { shouldHaveAlarm = true; } } catch (e) { /* Ignore */ }
-                      }
-                      const hasAlarm = taskElement.classList.contains('due-alarm');
-                      if (shouldHaveAlarm && !hasAlarm) { taskElement.classList.add('due-alarm'); changed = true; }
-                      else if (!shouldHaveAlarm && hasAlarm) { taskElement.classList.remove('due-alarm'); changed = true; }
-                  });
-              });
-          });
-      }
-      function startDueDateChecker() { if (dueDateCheckInterval) clearInterval(dueDateCheckInterval); dueDateCheckInterval = setInterval(checkDueDates, 60 * 1000); console.log("Due date checker started."); checkDueDates(); }
-      let boardClickListener = null; let sidebarClickListener = null;
-      function setupDelegatedListeners() {
-           if (boardClickListener) boardsContainer.removeEventListener('click', boardClickListener);
-           boardClickListener = function(e) {
-               const editTaskBtn = e.target.closest('.edit-task-btn'); const delTaskBtn = e.target.closest('.delete-task-btn');
-               const editColBtn = e.target.closest('.edit-column-btn'); const delColBtn = e.target.closest('.delete-column-btn');
-               const taskCard = e.target.closest('.task-card'); const colEl = e.target.closest('.column'); const boardEl = e.target.closest('.board');
-               if (editTaskBtn && taskCard && colEl && boardEl) openEditTaskModal(taskCard.dataset.taskId, colEl.dataset.columnId, boardEl.id);
-               else if (delTaskBtn && taskCard && colEl && boardEl) deleteTask(taskCard.dataset.taskId, colEl.dataset.columnId, boardEl.id);
-               else if (editColBtn && colEl && boardEl) editColumnTitle(colEl.dataset.columnId, boardEl.id);
-               else if (delColBtn && colEl && boardEl) deleteColumn(colEl.dataset.columnId, boardEl.id);
-           };
-          boardsContainer.addEventListener('click', boardClickListener);
-          if (sidebarClickListener) sidebarContainer.removeEventListener('click', sidebarClickListener);
-          sidebarClickListener = function(e) {
-              const deleteStatusBtn = e.target.closest('.delete-status-btn');
-              if (deleteStatusBtn && !deleteStatusBtn.disabled) { const statusId = deleteStatusBtn.dataset.statusId; if (statusId) deleteStatus(statusId); else console.error("Delete status button clicked, but no status ID found."); }
-          };
-          sidebarContainer.addEventListener('click', sidebarClickListener);
-           document.querySelectorAll('.modal').forEach(modal => { modal.removeEventListener('click', closeModalHandler); modal.addEventListener('click', closeModalHandler); });
-      }
-      function closeModalHandler(e) { const modal = e.currentTarget; if (e.target === modal) closeModal(modal.id); const closeButton = e.target.closest('.close-modal-btn, .cancel-btn'); if (closeButton && closeButton.dataset.modalId === modal.id) closeModal(modal.id); }
 
-      // --- INITIALIZATION ---
-      console.log("Initializing Task Manager v3.3 (Strong Red Border Alarm)...");
-      loadState();
-      renderApp();
-      startDueDateChecker();
-      newTabBtn.addEventListener('click', openAddBoardModal);
-      console.log("Task Manager Initialized.");
+      console.log("Initializing Task Manager v3.5 (Firebase)...");
+      // Wait for Firebase data to load before rendering the UI
+      loadState().then(() => {
+          console.log("Firebase load/init complete. Rendering application UI.");
+          renderApp(); // Render the app *after* state is loaded/initialized
+          startTimers(); // Start timers after rendering is complete
+          newTabBtn.addEventListener('click', openAddBoardModal);
+          console.log("Task Manager Initialized and running.");
+      }).catch(error => {
+          // This catch is for potential errors *within* loadState's promise logic, though handled inside.
+          console.error("Critical error during initial application load:", error);
+          alert("שגיאה קריטית בטעינת האפליקציה.");
+          // Optionally display an error message overlay
+      });
 
     }); // End of DOMContentLoaded
   </script>
